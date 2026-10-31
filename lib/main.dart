@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/models.dart' as models;
 import 'config.dart';
 
 void main() => runApp(const BerberimApp());
@@ -63,16 +64,16 @@ class BarberPage extends StatefulWidget { const BarberPage({super.key}); @overri
 class _BarberPageState extends State<BarberPage> {
   final name=TextEditingController(), phone=TextEditingController(), address=TextEditingController();
   final service=TextEditingController(text:'Saç kesimi'), price=TextEditingController(text:'250');
-  String? barberId; String? inviteCode; bool loading=false; List<Document> appointments=[];
+  String? barberId; String? inviteCode; bool loading=false; List<models.Document> appointments=[];
   Future<void> saveBarber() async {
     if(name.text.trim().isEmpty) return;
     setState(()=>loading=true);
     try {
       final u=await account.get();
       final code='BRB${u.$id.substring(0,6).toUpperCase()}';
-      final d=await db.createDocument(databaseId:AppConfig.databaseId,collectionId:AppConfig.barbers,
+      final d=(await db.createDocument(databaseId:AppConfig.databaseId,collectionId:AppConfig.barbers,
         documentId:ID.unique(),data:{'userId':u.$id,'name':name.text.trim(),'phone':phone.text.trim(),
-        'address':address.text.trim(),'inviteCode':code,'isActive':true});
+        'address':address.text.trim(),'inviteCode':code,'isActive':true}))!;
       barberId=d.$id; inviteCode=code;
       await db.createDocument(databaseId:AppConfig.databaseId,collectionId:AppConfig.services,documentId:ID.unique(),
         data:{'barberId':d.$id,'name':service.text.trim(),'price':double.tryParse(price.text)??0,'durationMinutes':30,'isActive':true});
@@ -82,7 +83,7 @@ class _BarberPageState extends State<BarberPage> {
   Future<void> loadAppointments() async {
     if(barberId==null)return;
     try { final r=await db.listDocuments(databaseId:AppConfig.databaseId,collectionId:AppConfig.appointments,
-      queries:[Query.equal('barberId',barberId!),Query.orderAsc('startAt')]); setState(()=>appointments=r.documents); }
+      queries:[Query.equal('barberId',barberId!),Query.orderAsc('startAt')]); setState(()=>appointments=r.documents.whereType<models.Document>().toList()); }
     catch(e){toast('Randevular alınamadı: $e');}
   }
   void toast(String s)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(s)));
@@ -108,7 +109,7 @@ class _BarberPageState extends State<BarberPage> {
 class CustomerPage extends StatefulWidget { const CustomerPage({super.key}); @override State<CustomerPage> createState()=>_CustomerPageState(); }
 class _CustomerPageState extends State<CustomerPage> {
   final code=TextEditingController(), name=TextEditingController(), phone=TextEditingController();
-  List<Document> services=[]; String? barberId, barberName, selectedService; DateTime day=DateTime.now().add(const Duration(days:1));
+  List<models.Document> services=[]; String? barberId, barberName, selectedService; DateTime day=DateTime.now().add(const Duration(days:1));
   bool busy=false;
   void toast(String s)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(s)));
   Future<void> connect() async {
@@ -116,13 +117,13 @@ class _CustomerPageState extends State<CustomerPage> {
     try {
       final r=await db.listDocuments(databaseId:AppConfig.databaseId,collectionId:AppConfig.barbers,queries:[Query.equal('inviteCode',code.text.trim()),Query.limit(1)]);
       if(r.documents.isEmpty){toast('Davet kodu bulunamadı');return;}
-      final b=r.documents.first; final u=await account.get();
+      final b=r.documents.first!; final u=await account.get();
       barberId=b.$id; barberName=b.data['name']?.toString()??'Berberim';
       await db.createDocument(databaseId:AppConfig.databaseId,collectionId:AppConfig.customers,documentId:ID.unique(),
         data:{'userId':u.$id,'barberId':barberId,'name':name.text.trim(),'phone':phone.text.trim()});
       final s=await db.listDocuments(databaseId:AppConfig.databaseId,collectionId:AppConfig.services,
         queries:[Query.equal('barberId',barberId!),Query.equal('isActive',true)]);
-      setState(()=>services=s.documents);
+      setState(()=>services=s.documents.whereType<models.Document>().toList());
     } catch(e){toast('İşlem tamamlanamadı: $e');} finally{setState(()=>busy=false);}
   }
   Future<void> book() async {
@@ -137,7 +138,7 @@ class _CustomerPageState extends State<CustomerPage> {
         queries:[Query.equal('userId',u.$id),Query.equal('barberId',barberId!),Query.limit(1)]);
       if(c.documents.isEmpty){toast('Müşteri kaydı bulunamadı');return;}
       await db.createDocument(databaseId:AppConfig.databaseId,collectionId:AppConfig.appointments,documentId:ID.unique(),
-        data:{'barberId':barberId,'customerId':c.documents.first.$id,'serviceId':selectedService,
+        data:{'barberId':barberId,'customerId':c.documents.first!.$id,'serviceId':selectedService,
         'startAt':start.toUtc().toIso8601String(),'endAt':end.toUtc().toIso8601String(),'status':'pending','note':''});
       toast('Randevu talebin oluşturuldu');
     } catch(e){toast('Randevu oluşturulamadı: $e');} finally{setState(()=>busy=false);}
@@ -152,7 +153,7 @@ class _CustomerPageState extends State<CustomerPage> {
       ]else...[
         Text(barberName??'Berberim',style:const TextStyle(fontSize:24,fontWeight:FontWeight.bold,color:ink)),
         const SizedBox(height:8),const Text('Hizmet seç ve randevu talebini oluştur.'),
-        const SizedBox(height:18),DropdownButtonFormField<String>(value:selectedService,decoration:const InputDecoration(labelText:'Hizmet seç'),
+        const SizedBox(height:18),DropdownButtonFormField<String>(initialValue:selectedService,decoration:const InputDecoration(labelText:'Hizmet seç'),
           items:services.map((s)=>DropdownMenuItem(value:s.$id,child:Text('${s.data['name']} • ${s.data['price']} TL'))).toList(),onChanged:(v)=>setState(()=>selectedService=v)),
         const SizedBox(height:14),OutlinedButton.icon(onPressed:()async{final d=await showDatePicker(context:context,firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:90)),initialDate:day);if(d!=null)setState(()=>day=d);},
           icon:const Icon(Icons.calendar_month),label:Text('${day.day.toString().padLeft(2,'0')}.${day.month.toString().padLeft(2,'0')}.${day.year}')),
