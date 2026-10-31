@@ -63,7 +63,7 @@ class BarberPage extends StatefulWidget { const BarberPage({super.key}); @overri
 class _BarberPageState extends State<BarberPage> {
   final name=TextEditingController(), phone=TextEditingController(), address=TextEditingController();
   final service=TextEditingController(text:'Saç kesimi'), price=TextEditingController(text:'250');
-  String? barberId; bool loading=false; List<Document> appointments=[];
+  String? barberId; String? inviteCode; bool loading=false; List<Document> appointments=[];
   Future<void> saveBarber() async {
     if(name.text.trim().isEmpty) return;
     setState(()=>loading=true);
@@ -73,7 +73,7 @@ class _BarberPageState extends State<BarberPage> {
       final d=await db.createDocument(databaseId:AppConfig.databaseId,collectionId:AppConfig.barbers,
         documentId:ID.unique(),data:{'userId':u.$id,'name':name.text.trim(),'phone':phone.text.trim(),
         'address':address.text.trim(),'inviteCode':code,'isActive':true});
-      barberId=d.$id;
+      barberId=d.$id; inviteCode=code;
       await db.createDocument(databaseId:AppConfig.databaseId,collectionId:AppConfig.services,documentId:ID.unique(),
         data:{'barberId':d.$id,'name':service.text.trim(),'price':double.tryParse(price.text)??0,'durationMinutes':30,'isActive':true});
       if(mounted) setState((){});
@@ -97,7 +97,7 @@ class _BarberPageState extends State<BarberPage> {
         const SizedBox(height:18),ElevatedButton(onPressed:loading?null:saveBarber,child:Text(loading?'Kaydediliyor...':'İşletmeyi oluştur')),
       ] else ...[
         const Text('İşletmen hazır',style:TextStyle(fontSize:24,fontWeight:FontWeight.bold,color:ink)),
-        const SizedBox(height:12),const Text('Davet kodun'),SelectableText(barberId!,style:const TextStyle(fontSize:24,fontWeight:FontWeight.bold,color:green)),
+        const SizedBox(height:12),const Text('Davet kodun'),SelectableText(inviteCode??'',style:const TextStyle(fontSize:24,fontWeight:FontWeight.bold,color:green)),
         const SizedBox(height:8),const Text('Müşterilerin bu kodla işletmene bağlanabilir.'),
         const SizedBox(height:20),ElevatedButton(onPressed:loadAppointments,child:const Text('Randevuları yenile')),
         ...appointments.map((a)=>Card(child:ListTile(leading:const Icon(Icons.event_available,color:green),title:Text(a.data['startAt']?.toString()??'Randevu'),subtitle:Text('Durum: ${a.data['status']??'bekliyor'}'))))
