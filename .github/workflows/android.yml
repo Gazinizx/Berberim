@@ -1,4 +1,5 @@
 name: Android APK
+# Build and publish a release APK artifact on every main-branch push.
 on:
   push:
     branches: [main]
