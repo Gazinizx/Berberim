@@ -61,7 +61,7 @@ jobs:
           import re
           p = Path("android/app/src/main/AndroidManifest.xml")
           s = p.read_text()
-          s, count = re.subn(r'<application\\b([^>]*)>', lambda m: '<application' + re.sub(r'\\s+android:(?:roundIcon|icon)="[^"]*"', '', m.group(1)) + ' android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher">', s, count=1)
+          s, count = re.subn(r'<application\b([^>]*)>', lambda m: '<application' + re.sub(r'\s+android:(?:roundIcon|icon)="[^"]*"', '', m.group(1)) + ' android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher">', s, count=1)
           if count != 1:
               raise SystemExit("Could not locate the application element in AndroidManifest.xml")
           p.write_text(s)
