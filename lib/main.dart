@@ -8,8 +8,8 @@ final supabase = Supabase.instance.client;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  const url = String.fromEnvironment('SUPABASE_URL');
-  const key = String.fromEnvironment('SUPABASE_ANON_KEY');
+  const url = String.fromEnvironment('SUPABASE_URL', defaultValue: 'https://tzwlbwhokvnjekwwpnsr.supabase.co');
+  const key = String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: 'sb_publishable_dkvrMB41cXEeH2dBdKAwxA_MFWTZyW0');
   if (url.isNotEmpty && key.isNotEmpty) {
     await Supabase.initialize(url: url, anonKey: key);
   }
