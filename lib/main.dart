@@ -358,6 +358,14 @@ class _BarberPageState extends State<BarberPage> {
   final serviceName = TextEditingController(), price = TextEditingController(), duration = TextEditingController(text: '30');
   final opening = TextEditingController(text: '09:00'), closing = TextEditingController(text: '20:00');
   String? notice;
+  @override void initState() {
+    super.initState();
+    final hours = widget.profile['workingHours'];
+    if (hours is Map) {
+      opening.text = (hours['opening'] ?? '09:00').toString();
+      closing.text = (hours['closing'] ?? '20:00').toString();
+    }
+  }
   Future<void> addService() async {
     final name = serviceName.text.trim(), p = int.tryParse(price.text), mins = int.tryParse(duration.text);
     if (name.isEmpty || p == null || p < 0 || mins == null || mins < 5 || mins > 360) {

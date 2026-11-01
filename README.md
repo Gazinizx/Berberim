@@ -10,7 +10,7 @@ Fresh Flutter application for a multi-shop barber appointment service.
 - Callable backend booking transaction with a unique slot lock.
 - Cancellation and FCM notification functions.
 - Firestore rules that deny client-side writes to profiles, applications, bookings, and slot locks.
-- GitHub Actions Android release APK build.
+- GitHub Actions Android release APK and unsigned iOS app builds.
 
 ## Required deployment configuration
 This repository intentionally does not contain Firebase project credentials.
@@ -21,4 +21,4 @@ Deploy Cloud Functions and Firestore rules with a Firebase project:
 During Functions deployment, set the Firebase parameter ADMIN_EMAIL to the administrator's exact Firebase Auth email. Create an account with that email in the app, then tap "Yönetici hesabını etkinleştir". The callable verifies the configured email server-side and only initializes an account that has no profile. Never grant admin role directly from the client.
 
 ## Build
-GitHub Actions -> **Build Android APK**. The generated APK is uploaded as a workflow artifact.
+GitHub Actions -> **Build Android APK** for an APK artifact or **Build iOS App (unsigned)** for the iOS app bundle. A signed IPA for TestFlight/App Store still requires the Apple signing certificate, provisioning profile, and matching iOS Firebase app configuration.

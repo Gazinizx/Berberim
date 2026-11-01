@@ -19,7 +19,8 @@ function istanbulParts(date: Date): {date: string; time: string} {
     timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   }).formatToParts(date);
-  const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
+  const p: Record<string, string> = {};
+  for (const part of parts) p[part.type] = part.value;
   return {date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}`};
 }
 function requireAuth(request: {auth?: {uid: string; token: Record<string, unknown>} | null}): string {
