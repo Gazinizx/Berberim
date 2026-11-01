@@ -106,9 +106,7 @@ class _ProfilePageState extends State<ProfilePage>{
  Future<void> save() async { setState(()=>busy=true); try {
  await sb.from('profiles').update({'full_name':name.text.trim(),'phone':phone.text.trim()}).eq('id',uid);
  if(owner){
- final b=await sb.from('businesses').insert({'owner_id':uid,'name':shop.text.trim(),'status':'pending'}).select().single();
- await sb.from('employees').insert({'business_id':b['id'],'user_id':uid,'display_name':name.text.trim()});
- for(var d=0;d<7;d++){await sb.from('business_hours').insert({'business_id':b['id'],'weekday':d,'opens_at':d==0?null:'09:00','closes_at':d==0?null:'20:00','is_closed':d==0});}
+ await sb.rpc('create_business_application',params:{'p_name':shop.text.trim(),'p_address':null});
  }else{await sb.rpc('join_business_by_code',params:{'p_code':code.text.trim().toUpperCase()});}
  }catch(e){message=err(e);} if(mounted){setState(()=>busy=false);if(message.isEmpty)Navigator.of(context).pushReplacement(MaterialPageRoute(builder:(_)=>const AuthGate()));}}
  @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('Hesap bilgileri'),actions:[IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout))]),body:ListView(padding:const EdgeInsets.all(20),children:[
