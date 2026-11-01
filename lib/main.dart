@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const gold = Color(0xFFF2B84B);
-const ink = Color(0xFF111111);
-const panel = Color(0xFF202020);
+const gold = Color(0xFFFF7A1A);
+const ink = Color(0xFF0B0B0E);
+const panel = Color(0xFF19191F);
 final sb = Supabase.instance.client;
 String get uid => sb.auth.currentUser!.id;
 String err(Object e) => e.toString().replaceFirst('Exception: ', '').replaceFirst('PostgrestException(message: ', '');
@@ -22,13 +22,63 @@ class BerberimApp extends StatelessWidget {
   const BerberimApp({super.key});
   @override Widget build(BuildContext context) => MaterialApp(
     title: 'Berberim', debugShowCheckedModeBanner: false,
-    theme: ThemeData(useMaterial3: true, brightness: Brightness.dark,
-      scaffoldBackgroundColor: ink, colorScheme: ColorScheme.fromSeed(seedColor: gold, brightness: Brightness.dark),
-      cardTheme: const CardThemeData(color: panel),
-      inputDecorationTheme: InputDecorationTheme(filled: true, fillColor: panel,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none)),
+    theme: ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: ink,
+      colorScheme: ColorScheme.fromSeed(seedColor: gold, brightness: Brightness.dark).copyWith(
+        primary: gold, secondary: const Color(0xFFFFA45C), surface: panel,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: ink, foregroundColor: Colors.white, centerTitle: false,
+        elevation: 0, scrolledUnderElevation: 0,
+        titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white),
+      ),
+      cardTheme: CardThemeData(
+        color: panel, elevation: 0, margin: const EdgeInsets.symmetric(vertical: 7),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF303037), width: 1),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true, fillColor: const Color(0xFF17171C),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
+        labelStyle: const TextStyle(color: Colors.white60, fontWeight: FontWeight.w500),
+        prefixIconColor: gold,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFF303037)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: gold, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Colors.redAccent),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+        ),
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(
-        backgroundColor: gold, foregroundColor: ink, minimumSize: const Size.fromHeight(48)))),
+        backgroundColor: gold, foregroundColor: ink, minimumSize: const Size.fromHeight(54),
+        elevation: 0, textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      )),
+      outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(
+        foregroundColor: Colors.white, minimumSize: const Size.fromHeight(50),
+        side: const BorderSide(color: Color(0xFF3A3A42)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      )),
+      textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(
+        foregroundColor: gold, textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      )),
+      dividerTheme: const DividerThemeData(color: Color(0xFF303037), thickness: 1),
+    ),
     home: const ConfigGate());
 }
 
