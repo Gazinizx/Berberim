@@ -13,12 +13,16 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-      - name: Generate Android and iOS platform folders
-        run: flutter create --platforms=android,ios --org com.gazinizx.berberim .
+      - name: Generate Android platform folder only
+        run: flutter create --platforms=android --org com.gazinizx.berberim .
+      - name: Restore tracked test after Flutter scaffolding
+        run: git checkout -- test/widget_test.dart
       - name: Get packages
         run: flutter pub get
       - name: Analyze
         run: flutter analyze
+      - name: Run tests
+        run: flutter test
       - name: Build APK
         run: flutter build apk --release
       - uses: actions/upload-artifact@v4
