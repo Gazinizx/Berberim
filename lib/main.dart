@@ -269,7 +269,7 @@ class _DashboardState extends State<Dashboard> {
     final parsed=int.tryParse(price.text.trim())??(prices[service]??200);
     setState((){
       if(existing==null){appointments.add(Appointment(id:DateTime.now().microsecondsSinceEpoch.toString(),name:name.text.trim(),phone:phone.text.trim(),service:service,date:_date(date),time:'${time.hour.toString().padLeft(2,'0')}:${time.minute.toString().padLeft(2,'0')}',price:parsed));}
-      else {existing.name=name.text.trim();existing.phone=phone.text.trim();existing.service=service;existing.date=_date(date);existing.time='${time.hour.toString().padLeft(2,'0')}:${time.minute.toString().padLeft(2,'0')}';}
+      else {existing.name=name.text.trim();existing.phone=phone.text.trim();existing.service=service;existing.date=_date(date);existing.time='${time.hour.toString().padLeft(2,'0')}:${time.minute.toString().padLeft(2,'0')}';existing.price=parsed;}
     });
     await _save();if(mounted)_toast(existing==null?'Randevu kaydedildi':'Randevu güncellendi');
   }
