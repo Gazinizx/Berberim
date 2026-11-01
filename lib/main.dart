@@ -289,7 +289,7 @@ class _CustomerPageState extends State<CustomerPage> {
             if (docs.isEmpty) return const Text('Bu işletmede henüz hizmet eklenmemiş.');
             serviceId ??= docs.first.id;
             return DropdownButtonFormField<String>(
-              value: docs.any((d) => d.id == serviceId) ? serviceId : docs.first.id,
+              initialValue: docs.any((d) => d.id == serviceId) ? serviceId : docs.first.id,
               decoration: const InputDecoration(labelText: 'Hizmet seç'),
               items: docs.map((d) => DropdownMenuItem(value: d.id,
                 child: Text('${d.data()['name']} • ${d.data()['price']} TL (${d.data()['durationMinutes']} dk)'))).toList(),
@@ -322,6 +322,7 @@ class _CustomerPageState extends State<CustomerPage> {
             if (!snap.hasData) return const LinearProgressIndicator();
             final docs = [...snap.data!.docs]..sort((a,b) => (a.data()['startAt'] as Timestamp).compareTo(b.data()['startAt'] as Timestamp));
             if (docs.isEmpty) return const Text('Henüz randevu yok.');
+            final messenger = ScaffoldMessenger.of(context);
             return Column(children: docs.map((d) {
               final a = d.data();
               return Card(child: ListTile(
@@ -329,7 +330,7 @@ class _CustomerPageState extends State<CustomerPage> {
                 subtitle: Text('${a['customerName'] ?? 'Müşteri'} • ${a['customerPhone'] ?? ''}\n${(a['startAt'] as Timestamp).toDate().toLocal()}'),
                 trailing: a['status'] == 'confirmed' ? IconButton(icon: const Icon(Icons.cancel_outlined), onPressed: () async {
                   try { await functions.httpsCallable('cancelAppointment').call({'appointmentId': d.id}); }
-                  catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'))); }
+                  catch (e) { if (mounted) messenger.showSnackBar(SnackBar(content: Text('$e'))); }
                 }) : null,
               ));
             }).toList());
