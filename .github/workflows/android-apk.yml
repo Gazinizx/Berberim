@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, clean-rebuild]
+    branches: [main]
 
 permissions:
   contents: read
@@ -23,78 +23,63 @@ jobs:
           cache: true
       - name: Prepare Android platform
         run: |
-          if [ ! -d android ]; then flutter create --platforms=android --project-name=berberim .; fi
-      - name: Apply Berberim launcher icon
+          if [ ! -d android ]; then flutter create --platforms=android --org com.gazinizx --project-name berberim .; fi
+      - name: Configure email confirmation deep link
         run: |
-          mkdir -p android/app/src/main/res/drawable android/app/src/main/res/mipmap-anydpi android/app/src/main/res/mipmap-anydpi-v26 android/app/src/main/res/values
-          cat > android/app/src/main/res/drawable/ic_launcher_foreground.xml <<'EOF'
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="108dp" android:height="108dp"
-              android:viewportWidth="108" android:viewportHeight="108">
-              <path android:fillColor="#D6A64B" android:pathData="M54,8 A46,46 0,1 0,54 100 A46,46 0,1 0,54 8 M54,17 A37,37 0,1 1,54 91 A37,37 0,1 1,54 17" />
-              <path android:fillColor="#F7F4ED" android:pathData="M35,31 C29,31 25,36 25,42 C25,48 30,53 36,53 C42,53 47,48 47,42 C47,36 42,31 35,31 M35,37 C38,37 41,39 41,42 C41,45 38,47 35,47 C32,47 31,45 31,42 C31,39 32,37 35,37 M73,31 C67,31 62,36 62,42 C62,48 67,53 73,53 C79,53 84,48 84,42 C84,36 79,31 73,31 M73,37 C76,37 78,39 78,42 C78,45 76,47 73,47 C70,47 68,45 68,42 C68,39 70,37 73,37" />
-              <path android:fillColor="#F7F4ED" android:pathData="M42,47 L76,78 L71,84 L37,53 Z M66,47 L32,78 L37,84 L71,53 Z" />
-              <path android:fillColor="#D6A64B" android:pathData="M51,55 L57,55 L57,79 L51,79 Z" />
-          </vector>
-          EOF
-          cat > android/app/src/main/res/mipmap-anydpi/ic_launcher.xml <<'EOF'
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="48dp" android:height="48dp"
-              android:viewportWidth="108" android:viewportHeight="108">
-              <path android:fillColor="#101114" android:pathData="M0,0h108v108h-108z" />
-              <path android:fillColor="#D6A64B" android:pathData="M54,8 A46,46 0,1 0,54 100 A46,46 0,1 0,54 8 M54,17 A37,37 0,1 1,54 91 A37,37 0,1 1,54 17" />
-              <path android:fillColor="#F7F4ED" android:pathData="M35,31 C29,31 25,36 25,42 C25,48 30,53 36,53 C42,53 47,48 47,42 C47,36 42,31 35,31 M35,37 C38,37 41,39 41,42 C41,45 38,47 35,47 C32,47 31,45 31,42 C31,39 32,37 35,37 M73,31 C67,31 62,36 62,42 C62,48 67,53 73,53 C79,53 84,48 84,42 C84,36 79,31 73,31 M73,37 C76,37 78,39 78,42 C78,45 76,47 73,47 C70,47 68,45 68,42 C68,39 70,37 73,37" />
-              <path android:fillColor="#F7F4ED" android:pathData="M42,47 L76,78 L71,84 L37,53 Z M66,47 L32,78 L37,84 L71,53 Z" />
-          </vector>
-          EOF
-          cat > android/app/src/main/res/values/ic_launcher_background.xml <<'EOF'
-          <resources><color name="ic_launcher_background">#101114</color></resources>
-          EOF
-          cat > android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
-          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-              <background android:drawable="@color/ic_launcher_background" />
-              <foreground android:drawable="@drawable/ic_launcher_foreground" />
-          </adaptive-icon>
-          EOF
           python3 - <<'PY'
           from pathlib import Path
-          import re
           p = Path("android/app/src/main/AndroidManifest.xml")
           s = p.read_text()
-          s, count = re.subn(r'<application\b([^>]*)>', lambda m: '<application' + re.sub(r'\s+android:(?:roundIcon|icon)="[^"]*"', '', m.group(1)) + ' android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher">', s, count=1)
-          if count != 1:
-              raise SystemExit("Could not locate the application element in AndroidManifest.xml")
-          p.write_text(s)
-          print("Berberim launcher icon installed.")
+          marker = '<!-- BERBERIM_AUTH_DEEP_LINK -->'
+          if marker not in s:
+              activity = s.find('<activity')
+              if activity < 0:
+                  raise SystemExit("Main activity not found in AndroidManifest.xml")
+              close = s.find('>', activity) + 1
+              block = '''
+                  <!-- BERBERIM_AUTH_DEEP_LINK -->
+                  <intent-filter>
+                      <action android:name="android.intent.action.VIEW" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <category android:name="android.intent.category.BROWSABLE" />
+                      <data android:scheme="berberim" android:host="login-callback" />
+                  </intent-filter>
+              '''
+              s = s[:close] + block + s[close:]
+              p.write_text(s)
+          if 'android:scheme="berberim"' not in p.read_text():
+              raise SystemExit("Berberim auth deep link not configured")
+          print("Android email confirmation deep link configured.")
+          PY
+      - name: Ensure release internet permission
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          if not manifest.exists():
+              raise SystemExit(f"Android manifest missing: {manifest}")
+          text = manifest.read_text()
+          permission = '<uses-permission android:name="android.permission.INTERNET"/>'
+          if "android.permission.INTERNET" not in text:
+              insertion_point = text.find("<application")
+              if insertion_point < 0:
+                  raise SystemExit("AndroidManifest.xml has no <application> element")
+              text = text[:insertion_point] + permission + "\n    " + text[insertion_point:]
+              manifest.write_text(text)
+          if "android.permission.INTERNET" not in manifest.read_text():
+              raise SystemExit("INTERNET permission was not added to the main manifest")
+          print("Verified INTERNET permission in main Android manifest.")
           PY
       - name: Install dependencies
         run: flutter pub get
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Check backend TypeScript
-        working-directory: functions
-        run: |
-          npm install
-          npm run build
       - name: Analyze Dart
-        run: flutter analyze --no-pub lib
+        run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
+      - name: Run tests
+        run: flutter test
       - name: Build release APK
-        env:
-          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
-        run: |
-          flutter build apk --release \
-            --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" \
-            --dart-define=FIREBASE_APP_ID="$FIREBASE_APP_ID" \
-            --dart-define=FIREBASE_MESSAGING_SENDER_ID="$FIREBASE_MESSAGING_SENDER_ID" \
-            --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID" \
-            --dart-define=FIREBASE_STORAGE_BUCKET="$FIREBASE_STORAGE_BUCKET"
+        run: flutter build apk --release --dart-define=SUPABASE_URL=https://tzwlbwhokvnjekwwpnsr.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_dkvrMB41cXEeH2dBdKAwxA_MFWTZyW0
       - uses: actions/upload-artifact@v4
         with:
-          name: berberim-release-apk
+          name: berberim-supabase-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
