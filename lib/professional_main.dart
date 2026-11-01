@@ -31,7 +31,7 @@ class BerberimApp extends StatelessWidget{
   inputDecorationTheme:InputDecorationTheme(filled:true,fillColor:panel2,contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:16),labelStyle:const TextStyle(color:muted),border:OutlineInputBorder(borderRadius:BorderRadius.circular(15),borderSide:const BorderSide(color:line)),enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(15),borderSide:const BorderSide(color:line)),focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(15),borderSide:const BorderSide(color:gold,width:1.5))),
   elevatedButtonTheme:ElevatedButtonThemeData(style:ElevatedButton.styleFrom(backgroundColor:gold,foregroundColor:const Color(0xFF17130B),minimumSize:const Size.fromHeight(52),elevation:0,textStyle:const TextStyle(fontWeight:FontWeight.w800),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(15)))),
   outlinedButtonTheme:OutlinedButtonThemeData(style:OutlinedButton.styleFrom(foregroundColor:ivory,minimumSize:const Size.fromHeight(48),side:const BorderSide(color:line),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(15)))),
-  navigationBarTheme:const NavigationBarThemeData(backgroundColor:panel,indicatorColor:Color(0x33D6A64B),height:72,labelTextStyle:WidgetStatePropertyAll(TextStyle(fontSize:11,fontWeight:FontWeight.w700))),
+  navigationBarTheme:const NavigationBarThemeData(backgroundColor:panel,indicatorColor:Color(0x33D6A64B),height:72,animationDuration:Duration.zero,labelTextStyle:WidgetStatePropertyAll(TextStyle(fontSize:11,fontWeight:FontWeight.w700))),
   dialogTheme:DialogThemeData(backgroundColor:panel,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22))),
  ),home:const ConfigGate());
 }
@@ -174,7 +174,7 @@ class _OwnerPageState extends State<OwnerPage>{
   section('Mevcut hizmetler'),FutureBuilder<List<Map<String,dynamic>>>(future:cached('owner_services_${widget.business['id']}',()=>db.from('services').select().eq('business_id',widget.business['id']).order('created_at')),builder:(c,s){if(s.connectionState!=ConnectionState.done)return const Loading();return Column(children:(s.data??[]).map((x)=>cardBox(SwitchListTile(value:x['is_active']==true,title:Text(x['name'],style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text('${x['price']} TL • ${x['duration_minutes']} dk',style:const TextStyle(color:muted)),secondary:IconButton(onPressed:()=>editService(x),icon:const Icon(Icons.edit_outlined)),onChanged:(v)async{await db.from('services').update({'is_active':v}).eq('id',x['id']);refresh();}))).toList());})
   ]);
  }
- @override Widget build(BuildContext c){final pages=[home(),team(),management()];return Scaffold(appBar:AppBar(title:Text(widget.business['name']??'İşletme'),actions:[notifications(c),IconButton(onPressed:refresh,icon:const Icon(Icons.refresh)),logout()]),body:pages[tab],bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const [NavigationDestination(icon:Icon(Icons.home_outlined),label:'Ana Sayfa'),NavigationDestination(icon:Icon(Icons.groups_outlined),label:'Çalışanlar'),NavigationDestination(icon:Icon(Icons.tune),label:'Yönetim')]));}
+ @override Widget build(BuildContext c){return Scaffold(appBar:AppBar(title:Text(widget.business['name']??'İşletme'),actions:[notifications(c),IconButton(onPressed:refresh,icon:const Icon(Icons.refresh)),logout()]),body:tab==0?home():tab==1?team():management(),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const [NavigationDestination(icon:Icon(Icons.home_outlined),label:'Ana Sayfa'),NavigationDestination(icon:Icon(Icons.groups_outlined),label:'Çalışanlar'),NavigationDestination(icon:Icon(Icons.tune),label:'Yönetim')]));}
 }
 
 class WorkerPage extends StatefulWidget{const WorkerPage({super.key,required this.employee,required this.business});final Map<String,dynamic> employee,business;@override State<WorkerPage> createState()=>_WorkerPageState();}
@@ -266,9 +266,9 @@ class CustomerPage extends StatefulWidget{const CustomerPage({super.key});@overr
 class _CustomerPageState extends State<CustomerPage>{
  int tab=0;final code=TextEditingController(),fullName=TextEditingController(),phone=TextEditingController();String? employeeId,serviceId;DateTime day=DateTime.now().add(const Duration(days:1));DateTime? slot;bool busy=false;
  Future<List<Map<String,dynamic>>> membership()=>cached('customer_membership_$userId',()=>db.from('business_memberships').select('business_id,businesses(id,name,address,status)').eq('customer_id',userId));
- Future<void> join()async{setState(()=>busy=true);try{await db.rpc('join_business_by_code',params:{'p_code':code.text.trim().toUpperCase()});code.clear();setState(() { employeeId=null; serviceId=null; slot=null; });snack(context,'İşletmeye bağlandın');}catch(e){snack(context,errorText(e));}if(mounted)setState(()=>busy=false);}
- Future<void> leave()async{final yes=await showDialog<bool>(context:context,builder:(d)=>AlertDialog(title:const Text('Berberinden ayrıl?'),content:const Text('İşletme bağlantın kaldırılacak. Geçmiş randevuların silinmeyecek.'),actions:[TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('Vazgeç')),ElevatedButton(onPressed:()=>Navigator.pop(d,true),child:const Text('Ayrıl'))]));if(yes!=true)return;try{await db.rpc('leave_business');setState(() { employeeId=null; serviceId=null; slot=null; });snack(context,'İşletme bağlantısı kaldırıldı');}catch(e){snack(context,errorText(e));}}
- Future<void> book(String bid)async{if(employeeId==null||serviceId==null||slot==null)return;setState(()=>busy=true);try{await db.rpc('book_appointment',params:{'p_business_id':bid,'p_employee_id':employeeId,'p_service_id':serviceId,'p_starts_at':slot!.toUtc().toIso8601String()});snack(context,'Randevun oluşturuldu');setState(() { slot=null; tab=1; });}catch(e){snack(context,errorText(e));}if(mounted)setState(()=>busy=false);}
+ Future<void> join()async{setState(()=>busy=true);try{await db.rpc('join_business_by_code',params:{'p_code':code.text.trim().toUpperCase()});invalidateFutureCache('customer_');code.clear();setState(() { employeeId=null; serviceId=null; slot=null; });snack(context,'İşletmeye bağlandın');}catch(e){snack(context,errorText(e));}if(mounted)setState(()=>busy=false);}
+ Future<void> leave()async{final yes=await showDialog<bool>(context:context,builder:(d)=>AlertDialog(title:const Text('Berberinden ayrıl?'),content:const Text('İşletme bağlantın kaldırılacak. Geçmiş randevuların silinmeyecek.'),actions:[TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('Vazgeç')),ElevatedButton(onPressed:()=>Navigator.pop(d,true),child:const Text('Ayrıl'))]));if(yes!=true)return;try{await db.rpc('leave_business');invalidateFutureCache('customer_');setState(() { employeeId=null; serviceId=null; slot=null; });snack(context,'İşletme bağlantısı kaldırıldı');}catch(e){snack(context,errorText(e));}}
+ Future<void> book(String bid)async{if(employeeId==null||serviceId==null||slot==null)return;setState(()=>busy=true);try{await db.rpc('book_appointment',params:{'p_business_id':bid,'p_employee_id':employeeId,'p_service_id':serviceId,'p_starts_at':slot!.toUtc().toIso8601String()});invalidateFutureCache('customer_');invalidateFutureCache('slots_');snack(context,'Randevun oluşturuldu');setState(() { slot=null; tab=1; });}catch(e){snack(context,errorText(e));}if(mounted)setState(()=>busy=false);}
  Widget joinPanel()=>cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Icon(Icons.storefront_outlined,color:gold,size:30),const SizedBox(height:8),const Text('Berberine bağlan',style:TextStyle(fontSize:18,fontWeight:FontWeight.w800)),const Text('İşletme kodunu bir kez girmen yeterli.',style:TextStyle(color:muted,fontSize:13)),const SizedBox(height:12),TextField(controller:code,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(labelText:'İşletme kodu',prefixIcon:Icon(Icons.key))),const SizedBox(height:10),ElevatedButton(onPressed:busy?null:join,child:Text(busy?'Bağlanıyor…':'İşletmeye bağlan'))]));
  Widget home(Map<String,dynamic>? b){
   if(b==null)return ListView(padding:const EdgeInsets.all(16),children:[titleBlock('Hoş geldin','Randevu oluşturmak için berberine bağlan.'),joinPanel()]);
@@ -306,7 +306,7 @@ class _CustomerPageState extends State<CustomerPage>{
     ),
    );
    if(chosen==null||!mounted)return;
-   await db.rpc('reschedule_appointment',params:{'p_appointment_id':a['id'],'p_starts_at':chosen.toUtc().toIso8601String()});
+   await db.rpc('reschedule_appointment',params:{'p_appointment_id':a['id'],'p_starts_at':chosen.toUtc().toIso8601String()});invalidateFutureCache('customer_');
    if(mounted){setState((){});snack(context,'Randevunun saati değiştirildi');}
   } catch(e) { if(mounted)snack(context,errorText(e)); }
  }
@@ -324,7 +324,7 @@ class _CustomerPageState extends State<CustomerPage>{
    ]),
    actions:[
     TextButton(onPressed:()=>Navigator.pop(dialog,false),child:const Text('Vazgeç')),
-    ElevatedButton(onPressed:()async{try{await db.rpc('submit_business_review',params:{'p_appointment_id':a['id'],'p_rating':rating,'p_comment':comment.text.trim()});if(dialog.mounted)Navigator.pop(dialog,true);}catch(e){if(dialog.mounted)snack(dialog,errorText(e));}},child:const Text('Değerlendirmeyi gönder')),
+    ElevatedButton(onPressed:()async{try{await db.rpc('submit_business_review',params:{'p_appointment_id':a['id'],'p_rating':rating,'p_comment':comment.text.trim()});invalidateFutureCache('customer_');if(dialog.mounted)Navigator.pop(dialog,true);}catch(e){if(dialog.mounted)snack(dialog,errorText(e));}},child:const Text('Değerlendirmeyi gönder')),
    ],
   )));
   comment.dispose();
@@ -357,7 +357,7 @@ class _CustomerPageState extends State<CustomerPage>{
      tinyInfo(Icons.person_outline,worker['display_name']??'Çalışan'),
      if(a['status']=='confirmed')Wrap(spacing:8,runSpacing:6,children:[
       TextButton.icon(onPressed:()=>reschedule(a),icon:const Icon(Icons.edit_calendar),label:const Text('Saati değiştir')),
-      TextButton.icon(onPressed:()async{try{await db.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});if(mounted)setState((){});}catch(e){if(mounted)snack(context,errorText(e));}},icon:const Icon(Icons.cancel_outlined),label:const Text('İptal et')),
+      TextButton.icon(onPressed:()async{try{await db.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});invalidateFutureCache('customer_');if(mounted)setState((){});}catch(e){if(mounted)snack(context,errorText(e));}},icon:const Icon(Icons.cancel_outlined),label:const Text('İptal et')),
      ]),
      if(a['status']=='completed'&&review==null)TextButton.icon(onPressed:()=>reviewAppointment(a),icon:const Icon(Icons.star_outline),label:const Text('Berberi değerlendir')),
      if(review!=null)Padding(padding:const EdgeInsets.only(top:8),child:Text('Puanın: ${''.padRight((review['rating'] as num).toInt(),'★')}${review['comment']==null?'':' • ${review['comment']}'}',style:const TextStyle(color:gold,fontSize:12,fontWeight:FontWeight.w700))),
@@ -381,7 +381,7 @@ class _CustomerPageState extends State<CustomerPage>{
     TextField(controller:phone,decoration:const InputDecoration(labelText:'Telefon')),
     const SizedBox(height:12),
     ElevatedButton(onPressed:()async{
-     try { await db.from('profiles').update({'full_name':fullName.text.trim(),'phone':phone.text.trim()}).eq('id',userId); if(mounted)snack(context,'Profilin güncellendi'); }
+     try { await db.from('profiles').update({'full_name':fullName.text.trim(),'phone':phone.text.trim()}).eq('id',userId);invalidateFutureCache('customer_profile_'); if(mounted)snack(context,'Profilin güncellendi'); }
      catch(e) { if(mounted)snack(context,errorText(e)); }
     },child:const Text('Bilgilerimi kaydet')),
    ])),
@@ -395,14 +395,14 @@ class _CustomerPageState extends State<CustomerPage>{
    OutlinedButton.icon(onPressed:()=>db.auth.signOut(),icon:const Icon(Icons.logout),label:const Text('Çıkış yap')),
   ]);
  });
- @override Widget build(BuildContext c)=>FutureBuilder<List<Map<String,dynamic>>>(future:membership(),builder:(c,m){if(m.connectionState!=ConnectionState.done)return const Loading();if(m.hasError)return Fail(errorText(m.error!));final rows=m.data??[];final b=rows.isEmpty?null:rows.first['businesses'] as Map<String,dynamic>?;final pages=[home(b),appointments(),profile(b!=null)];return Scaffold(appBar:AppBar(title:const Text('Berberim'),actions:[notifications(c),IconButton(onPressed:()=>setState((){}),icon:const Icon(Icons.refresh))]),body:pages[tab],bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const [NavigationDestination(icon:Icon(Icons.home_outlined),label:'Ana Sayfa'),NavigationDestination(icon:Icon(Icons.calendar_month_outlined),label:'Randevularım'),NavigationDestination(icon:Icon(Icons.person_outline),label:'Profilim')]));});
+ @override Widget build(BuildContext c)=>FutureBuilder<List<Map<String,dynamic>>>(future:membership(),builder:(c,m){if(m.connectionState!=ConnectionState.done)return const Loading();if(m.hasError)return Fail(errorText(m.error!));final rows=m.data??[];final b=rows.isEmpty?null:rows.first['businesses'] as Map<String,dynamic>?;return Scaffold(appBar:AppBar(title:const Text('Berberim'),actions:[notifications(c),IconButton(onPressed:(){invalidateFutureCache('customer_');setState((){});},icon:const Icon(Icons.refresh))]),body:tab==0?home(b):tab==1?appointments():profile(b!=null),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const [NavigationDestination(icon:Icon(Icons.home_outlined),label:'Ana Sayfa'),NavigationDestination(icon:Icon(Icons.calendar_month_outlined),label:'Randevularım'),NavigationDestination(icon:Icon(Icons.person_outline),label:'Profilim')]));});
 }
 
 class AdminPage extends StatefulWidget{const AdminPage({super.key});@override State<AdminPage> createState()=>_AdminPageState();}
 class _AdminPageState extends State<AdminPage>{
  int tab=0;Future<List<Map<String,dynamic>>> load(String t)=>cached('admin_$t',()=>db.from(t).select().order('created_at',ascending:false));
- Future<void> review(String id,String status)async{try{await db.rpc('review_business',params:{'p_business_id':id,'p_status':status});setState((){});}catch(e){snack(context,errorText(e));}}
- Future<void> block(String id,bool v)async{try{await db.rpc('admin_set_user_blocked',params:{'p_user_id':id,'p_blocked':v});setState((){});}catch(e){snack(context,errorText(e));}}
+ Future<void> review(String id,String status)async{try{await db.rpc('review_business',params:{'p_business_id':id,'p_status':status});invalidateFutureCache('admin_');setState((){});}catch(e){snack(context,errorText(e));}}
+ Future<void> block(String id,bool v)async{try{await db.rpc('admin_set_user_blocked',params:{'p_user_id':id,'p_blocked':v});invalidateFutureCache('admin_');setState((){});}catch(e){snack(context,errorText(e));}}
  @override Widget build(BuildContext c){final pages=[
   FutureBuilder<List<dynamic>>(future:Future.wait([load('profiles'),load('businesses'),load('appointments')]),builder:(c,s){if(!s.hasData)return const Loading();if(s.hasError)return Fail(errorText(s.error!));final p=s.data![0],b=s.data![1],a=s.data![2];return ListView(padding:const EdgeInsets.all(16),children:[titleBlock('Genel bakış','Yönetim merkezi'),Row(children:[Expanded(child:cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('${p.length}',style:const TextStyle(fontSize:27,fontWeight:FontWeight.w900)),const Text('Kullanıcı',style:TextStyle(color:muted))]))),const SizedBox(width:8),Expanded(child:cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('${b.length}',style:const TextStyle(fontSize:27,fontWeight:FontWeight.w900)),const Text('İşletme',style:TextStyle(color:muted))])))]),cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('${a.length}',style:const TextStyle(fontSize:27,fontWeight:FontWeight.w900)),const Text('Randevu',style:TextStyle(color:muted))]))]);}),
   FutureBuilder<List<Map<String,dynamic>>>(future:load('businesses'),builder:(c,s){if(!s.hasData)return const Loading();return ListView(padding:const EdgeInsets.all(16),children:[titleBlock('İşletmeler','Başvuruları ve durumları yönet'),...(s.data??[]).map((b)=>cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(b['name']??'İsimsiz',style:const TextStyle(fontWeight:FontWeight.w800)),Text('${b['status']} • ${b['join_code']??'—'}',style:const TextStyle(color:muted)),Wrap(children:[TextButton(onPressed:()=>review(b['id'],'active'),child:const Text('Onayla')),TextButton(onPressed:()=>review(b['id'],'rejected'),child:const Text('Reddet')),TextButton(onPressed:()=>review(b['id'],'inactive'),child:const Text('Pasife al'))])])))]);}),
