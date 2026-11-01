@@ -47,7 +47,7 @@ class AuthGate extends StatelessWidget{
    final profile=p.data!;
    if(profile['is_blocked']==true)return const Fail('Hesabın geçici olarak engellendi.');
    if(profile['is_admin']==true)return const AdminPage();
-   if(profile['account_type']=='worker')return FutureBuilder<Map<String,dynamic>?>(future:db.from('employees').select('*,businesses(*)').eq('user_id',userId).maybeSingle(),builder:(c,e){
+   if(profile['account_type']=='worker')return FutureBuilder<Map<String,dynamic>?>(future:db.from('employees').select('*,businesses(*)').eq('user_id',userId).eq('is_active',true).maybeSingle(),builder:(c,e){
     if(e.connectionState!=ConnectionState.done)return const Loading();
     if(e.hasError)return Fail(errorText(e.error!));
     if(e.data==null)return const Fail('Çalışan bağlantısı bulunamadı. İşletme sahibinden davet kodunu kontrol etmesini iste.');
