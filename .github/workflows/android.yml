@@ -15,21 +15,6 @@ jobs:
           channel: stable
       - name: Generate Android platform folder only
         run: flutter create --platforms=android --org com.gazinizx.berberim .
-      - name: Ensure internet permission in release manifest
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path("android/app/src/main/AndroidManifest.xml")
-          text = path.read_text()
-          permission = '    <uses-permission android:name="android.permission.INTERNET" />'
-          if "android.permission.INTERNET" not in text:
-              marker = '<application'
-              if marker not in text:
-                  raise SystemExit("AndroidManifest.xml içinde <application> bulunamadı")
-              text = text.replace(marker, permission + "\n    " + marker, 1)
-              path.write_text(text)
-          print("INTERNET permission present in main manifest")
-          PY
       - name: Restore tracked test after Flutter scaffolding
         run: git checkout -- test/widget_test.dart
       - name: Get packages
