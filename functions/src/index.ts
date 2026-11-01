@@ -2,11 +2,13 @@ import {initializeApp} from "firebase-admin/app";
 import {FieldValue, Timestamp, getFirestore} from "firebase-admin/firestore";
 import {getMessaging} from "firebase-admin/messaging";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {defineString} from "firebase-functions/params";
 import {randomBytes} from "crypto";
 
 initializeApp();
 const db = getFirestore();
 const messaging = getMessaging();
+const adminEmail = defineString("ADMIN_EMAIL", {description: "E-posta adresi allowed to initialize the first Berberim administrator"});
 const codeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 function newCode(): string {
   const b = randomBytes(7);
@@ -37,6 +39,19 @@ async function notify(uid: string, title: string, body: string, data: Record<str
     catch (e) { console.error("FCM send failed", e); }
   }
 }
+
+export const bootstrapAdmin = onCall(async (request) => {
+  const uid = requireAuth(request);
+  const email = String(request.auth?.token.email ?? "").trim().toLowerCase();
+  if (!email || email !== adminEmail.value().trim().toLowerCase()) {
+    throw new HttpsError("permission-denied", "Bu e-posta yönetici kurulumuna yetkili değil.");
+  }
+  const userRef = db.doc(`users/${uid}`);
+  const existing = await userRef.get();
+  if (existing.exists) throw new HttpsError("already-exists", "Bu hesap için profil zaten oluşturulmuş.");
+  await userRef.create({uid, email, name: "Yönetici", role: "admin", createdAt: FieldValue.serverTimestamp()});
+  return {ok: true};
+});
 
 export const registerDeviceToken = onCall(async (request) => {
   const uid = requireAuth(request);

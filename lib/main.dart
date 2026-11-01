@@ -227,6 +227,18 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       const SizedBox(height: 18),
       ElevatedButton(onPressed: busy ? null : submit, child: Text(busy ? 'Gönderiliyor…' : barber ? 'İşletme başvurusu gönder' : 'İşletme koduyla katıl')),
       const SizedBox(height: 8),
+      OutlinedButton(onPressed: busy ? null : () async {
+        setState(() { busy = true; error = ''; });
+        try {
+          await functions.httpsCallable('bootstrapAdmin').call();
+        } on FirebaseFunctionsException catch (e) {
+          if (mounted) setState(() => error = e.message ?? 'Yönetici kurulumu başarısız.');
+        } catch (e) {
+          if (mounted) setState(() => error = e.toString());
+        }
+        if (mounted) setState(() => busy = false);
+      }, child: const Text('Yönetici hesabını etkinleştir')),
+      const SizedBox(height: 8),
       const Text('Berber işletme başvuruları yönetici onayından sonra açılır.', style: TextStyle(color: Colors.white54)),
     ]),
   );
