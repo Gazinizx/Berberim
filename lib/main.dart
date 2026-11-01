@@ -73,7 +73,7 @@ class _BarberPageState extends State<BarberPage> {
       final code='BRB${u.$id.substring(0,6).toUpperCase()}';
       final d=(await db.createDocument(databaseId:AppConfig.databaseId,collectionId:AppConfig.barbers,
         documentId:ID.unique(),data:{'userId':u.$id,'name':name.text.trim(),'phone':phone.text.trim(),
-        'address':address.text.trim(),'inviteCode':code,'isActive':true}))!;
+        'address':address.text.trim(),'inviteCode':code,'isActive':true});
       barberId=d.$id; inviteCode=code;
       await db.createDocument(databaseId:AppConfig.databaseId,collectionId:AppConfig.services,documentId:ID.unique(),
         data:{'barberId':d.$id,'name':service.text.trim(),'price':double.tryParse(price.text)??0,'durationMinutes':30,'isActive':true});
@@ -117,7 +117,7 @@ class _CustomerPageState extends State<CustomerPage> {
     try {
       final r=await db.listDocuments(databaseId:AppConfig.databaseId,collectionId:AppConfig.barbers,queries:[Query.equal('inviteCode',code.text.trim()),Query.limit(1)]);
       if(r.documents.isEmpty){toast('Davet kodu bulunamadı');return;}
-      final b=r.documents.first!; final u=await account.get();
+      final b=r.documents.first; final u=await account.get();
       barberId=b.$id; barberName=b.data['name']?.toString()??'Berberim';
       await db.createDocument(databaseId:AppConfig.databaseId,collectionId:AppConfig.customers,documentId:ID.unique(),
         data:{'userId':u.$id,'barberId':barberId,'name':name.text.trim(),'phone':phone.text.trim()});
@@ -138,7 +138,7 @@ class _CustomerPageState extends State<CustomerPage> {
         queries:[Query.equal('userId',u.$id),Query.equal('barberId',barberId!),Query.limit(1)]);
       if(c.documents.isEmpty){toast('Müşteri kaydı bulunamadı');return;}
       await db.createDocument(databaseId:AppConfig.databaseId,collectionId:AppConfig.appointments,documentId:ID.unique(),
-        data:{'barberId':barberId,'customerId':c.documents.first!.$id,'serviceId':selectedService,
+        data:{'barberId':barberId,'customerId':c.documents.first.$id,'serviceId':selectedService,
         'startAt':start.toUtc().toIso8601String(),'endAt':end.toUtc().toIso8601String(),'status':'pending','note':''});
       toast('Randevu talebin oluşturuldu');
     } catch(e){toast('Randevu oluşturulamadı: $e');} finally{setState(()=>busy=false);}
