@@ -258,7 +258,79 @@ class _CustomerPageState extends State<CustomerPage>{
   const SizedBox(height:14),ElevatedButton(onPressed:busy||slot==null?null:()=>book(bid),child:Text(busy?'Randevu oluşturuluyor…':'Randevuyu onayla'))
  ]))]);
  }
- Widget appointments()=>ListView(padding:const EdgeInsets.all(16),children:[titleBlock('Randevularım','Yaklaşan ve geçmiş randevuların'),FutureBuilder<List<Map<String,dynamic>>>(future:db.from('appointments').select('*,businesses(name),services(name,price),employees(display_name)').eq('customer_id',userId).order('starts_at',ascending:false).limit(100),builder:(c,s){if(s.connectionState!=ConnectionState.done)return const Loading();if(s.hasError)return Text(errorText(s.error!));final rows=s.data??[];if(rows.isEmpty)return cardBox(const Text('Henüz randevun bulunmuyor.',style:TextStyle(color:muted)));return Column(children:rows.map((a){final service=(a['services'] as Map?)??{};final business=(a['businesses'] as Map?)??{};final worker=(a['employees'] as Map?)??{};final start=localDate(a['starts_at']);return cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text(service['name']??'Randevu',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:16))),statusPill(a['status'])]),const SizedBox(height:8),Text(business['name']??'',style:const TextStyle(color:gold,fontWeight:FontWeight.w700)),const SizedBox(height:5),tinyInfo(Icons.calendar_month,'${dateText(start)} • ${timeText(start)}'),const SizedBox(height:4),tinyInfo(Icons.person_outline,worker['display_name']??'Çalışan'),if(a['status']=='confirmed')Align(alignment:Alignment.centerRight,child:TextButton.icon(onPressed:()async{try{await db.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});setState((){});}catch(e){snack(context,errorText(e));}},icon:const Icon(Icons.cancel_outlined),label:const Text('Randevuyu iptal et')))]));}).toList());})]);
+ Future<void> reschedule(Map<String,dynamic> a) async {
+  final d=await showDatePicker(context:context,initialDate:DateTime.now().add(const Duration(days:1)),firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:90)));
+  if(d==null||!mounted)return;
+  try {
+   final raw=await db.rpc('get_available_slots',params:{'p_employee_id':a['employee_id'],'p_service_id':a['service_id'],'p_day':dateKey(d)});
+   final times=(raw as List).map((x)=>localDate((x as Map)['slot_start'])).toList();
+   if(times.isEmpty){if(mounted)snack(context,'Bu tarihte uygun saat yok.');return;}
+   final chosen=await showDialog<DateTime>(context:context,builder:(dialog)=>AlertDialog(
+    title:Text('Yeni saat • ${dateText(d)}'),
+    content:SingleChildScrollView(child:Wrap(spacing:8,runSpacing:8,children:times.map((t)=>ActionChip(label:Text(timeText(t)),onPressed:()=>Navigator.pop(dialog,t)).toList())),
+    actions:[TextButton(onPressed:()=>Navigator.pop(dialog),child:const Text('Vazgeç'))],
+   ));
+   if(chosen==null||!mounted)return;
+   await db.rpc('reschedule_appointment',params:{'p_appointment_id':a['id'],'p_starts_at':chosen.toUtc().toIso8601String()});
+   if(mounted){setState((){});snack(context,'Randevunun saati değiştirildi');}
+  } catch(e) { if(mounted)snack(context,errorText(e)); }
+ }
+ Future<void> reviewAppointment(Map<String,dynamic> a) async {
+  int rating=5;
+  final comment=TextEditingController();
+  final saved=await showDialog<bool>(context:context,builder:(dialog)=>StatefulBuilder(builder:(dialog,setDialog)=>AlertDialog(
+   title:const Text('Berberi değerlendir'),
+   content:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
+    const Text('Deneyimine kaç yıldız verirsin?',style:TextStyle(color:muted)),
+    const SizedBox(height:10),
+    SegmentedButton<int>(showSelectedIcon:false,segments:List.generate(5,(i)=>ButtonSegment<int>(value:i+1,label:Text('${i+1}'))),selected:{rating},onSelectionChanged:(v)=>setDialog(()=>rating=v.first)),
+    const SizedBox(height:12),
+    TextField(controller:comment,maxLines:3,maxLength:500,decoration:const InputDecoration(labelText:'Yorumun (isteğe bağlı)')),
+   ]),
+   actions:[
+    TextButton(onPressed:()=>Navigator.pop(dialog,false),child:const Text('Vazgeç')),
+    ElevatedButton(onPressed:()async{try{await db.rpc('submit_business_review',params:{'p_appointment_id':a['id'],'p_rating':rating,'p_comment':comment.text.trim()});if(dialog.mounted)Navigator.pop(dialog,true);}catch(e){if(dialog.mounted)snack(dialog,errorText(e));}},child:const Text('Değerlendirmeyi gönder')),
+   ],
+  )));
+  comment.dispose();
+  if(saved==true&&mounted){setState((){});snack(context,'Değerlendirmen kaydedildi');}
+ }
+ void repeatBooking(Map<String,dynamic> a){
+  setState((){employeeId=a['employee_id'];serviceId=a['service_id'];day=DateTime.now().add(const Duration(days:1));slot=null;tab=0;});
+ }
+ Widget appointments()=>ListView(padding:const EdgeInsets.all(16),children:[
+  titleBlock('Randevularım','Yaklaşan ve geçmiş randevuların'),
+  FutureBuilder<List<Map<String,dynamic>>>(future:db.from('appointments').select('*,businesses(name),services(name,price),employees(display_name),business_reviews(rating,comment)').eq('customer_id',userId).order('starts_at',ascending:false).limit(100),builder:(c,s){
+   if(s.connectionState!=ConnectionState.done)return const Loading();
+   if(s.hasError)return Text(errorText(s.error!));
+   final rows=s.data??[];
+   if(rows.isEmpty)return cardBox(const Text('Henüz randevun bulunmuyor.',style:TextStyle(color:muted)));
+   return Column(children:rows.map((a){
+    final service=(a['services'] as Map?)??{};
+    final business=(a['businesses'] as Map?)??{};
+    final worker=(a['employees'] as Map?)??{};
+    final start=localDate(a['starts_at']);
+    final reviews=(a['business_reviews'] as List?)??[];
+    final review=reviews.isEmpty?null:reviews.first;
+    return cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Row(children:[Expanded(child:Text(service['name']??'Randevu',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:16))),statusPill(a['status'])]),
+     const SizedBox(height:8),
+     Text(business['name']??'',style:const TextStyle(color:gold,fontWeight:FontWeight.w700)),
+     const SizedBox(height:5),
+     tinyInfo(Icons.calendar_month,'${dateText(start)} • ${timeText(start)}'),
+     const SizedBox(height:4),
+     tinyInfo(Icons.person_outline,worker['display_name']??'Çalışan'),
+     if(a['status']=='confirmed')Wrap(spacing:8,runSpacing:6,children:[
+      TextButton.icon(onPressed:()=>reschedule(a),icon:const Icon(Icons.edit_calendar),label:const Text('Saati değiştir')),
+      TextButton.icon(onPressed:()async{try{await db.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});if(mounted)setState((){});}catch(e){if(mounted)snack(context,errorText(e));}},icon:const Icon(Icons.cancel_outlined),label:const Text('İptal et')),
+     ]),
+     if(a['status']=='completed'&&review==null)TextButton.icon(onPressed:()=>reviewAppointment(a),icon:const Icon(Icons.star_outline),label:const Text('Berberi değerlendir')),
+     if(review!=null)Padding(padding:const EdgeInsets.only(top:8),child:Text('Puanın: ${'★'*((review['rating'] as num).toInt())}${review['comment']==null?'':' • ${review['comment']}'}',style:const TextStyle(color:gold,fontSize:12,fontWeight:FontWeight.w700))),
+     if(a['status']=='completed'||a['status']=='cancelled'||a['status']=='no_show')Align(alignment:Alignment.centerRight,child:TextButton.icon(onPressed:()=>repeatBooking(a),icon:const Icon(Icons.replay),label:const Text('Tekrar randevu al'))),
+    ]));
+   }).toList());
+  }),
+ ]);
  Widget profile(bool connected)=>FutureBuilder<Map<String,dynamic>?>(future:db.from('profiles').select().eq('id',userId).maybeSingle(),builder:(c,s){
   if(s.connectionState!=ConnectionState.done)return const Loading();
   final p=s.data??{};
