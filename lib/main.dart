@@ -329,7 +329,7 @@ class _CustomerPageState extends State<CustomerPage> {
           builder: (context, snap) {
             if (snap.hasError) return Text('Randevular yüklenemedi: ${snap.error}');
             if (!snap.hasData) return const LinearProgressIndicator();
-            final docs = snap.data!.docs..sort((a,b) => (a.data()['startAt'] as Timestamp).compareTo(b.data()['startAt'] as Timestamp));
+            final docs = [...snap.data!.docs]..sort((a,b) => (a.data()['startAt'] as Timestamp).compareTo(b.data()['startAt'] as Timestamp));
             if (docs.isEmpty) return const Text('Henüz randevu yok.');
             return Column(children: docs.map((d) {
               final a = d.data();
