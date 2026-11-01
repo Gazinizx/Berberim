@@ -325,7 +325,7 @@ class _CustomerPageState extends State<CustomerPage>{
       TextButton.icon(onPressed:()async{try{await db.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});if(mounted)setState((){});}catch(e){if(mounted)snack(context,errorText(e));}},icon:const Icon(Icons.cancel_outlined),label:const Text('İptal et')),
      ]),
      if(a['status']=='completed'&&review==null)TextButton.icon(onPressed:()=>reviewAppointment(a),icon:const Icon(Icons.star_outline),label:const Text('Berberi değerlendir')),
-     if(review!=null)Padding(padding:const EdgeInsets.only(top:8),child:Text('Puanın: ${'★'*((review['rating'] as num).toInt())}${review['comment']==null?'':' • ${review['comment']}'}',style:const TextStyle(color:gold,fontSize:12,fontWeight:FontWeight.w700))),
+     if(review!=null)Padding(padding:const EdgeInsets.only(top:8),child:Text('Puanın: ${''.padRight((review['rating'] as num).toInt(),'★')}${review['comment']==null?'':' • ${review['comment']}'}',style:const TextStyle(color:gold,fontSize:12,fontWeight:FontWeight.w700))),
      if(a['status']=='completed'||a['status']=='cancelled'||a['status']=='no_show')Align(alignment:Alignment.centerRight,child:TextButton.icon(onPressed:()=>repeatBooking(a),icon:const Icon(Icons.replay),label:const Text('Tekrar randevu al'))),
     ]));
    }).toList());
