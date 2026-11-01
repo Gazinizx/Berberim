@@ -12,6 +12,14 @@ function newCode(): string {
   const b = randomBytes(7);
   return Array.from(b, n => codeChars[n % codeChars.length]).join("");
 }
+function istanbulParts(date: Date): {date: string; time: string} {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(date);
+  const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
+  return {date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}`};
+}
 function requireAuth(request: {auth?: {uid: string; token: Record<string, unknown>} | null}): string {
   if (!request.auth) throw new HttpsError("unauthenticated", "Önce giriş yapmalısın.");
   return request.auth.uid;

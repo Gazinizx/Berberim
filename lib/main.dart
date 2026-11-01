@@ -261,7 +261,9 @@ class _CustomerPageState extends State<CustomerPage> {
     if (serviceId == null) { setState(() => message = 'Önce hizmet seç.'); return; }
     setState(() { busy = true; message = null; });
     try {
-      await functions.httpsCallable('bookAppointment').call({'date': dateKey(day), 'time': time, 'serviceId': serviceId});
+      final parts = time.split(':').map(int.parse).toList();
+      final localStart = DateTime(day.year, day.month, day.day, parts[0], parts[1]);
+      await functions.httpsCallable('bookAppointment').call({'date': dateKey(day), 'time': time, 'startAtMillis': localStart.millisecondsSinceEpoch, 'serviceId': serviceId});
       if (mounted) setState(() => message = 'Randevun onaylandı.');
     } on FirebaseFunctionsException catch (e) {
       if (mounted) setState(() => message = e.message ?? 'Randevu oluşturulamadı.');
@@ -342,6 +344,7 @@ class BarberPage extends StatefulWidget {
 }
 class _BarberPageState extends State<BarberPage> {
   final serviceName = TextEditingController(), price = TextEditingController(), duration = TextEditingController(text: '30');
+  final opening = TextEditingController(text: '09:00'), closing = TextEditingController(text: '20:00');
   String? notice;
   Future<void> addService() async {
     final name = serviceName.text.trim(), p = int.tryParse(price.text), mins = int.tryParse(duration.text);
@@ -355,7 +358,15 @@ class _BarberPageState extends State<BarberPage> {
       setState(() => notice = 'Hizmet eklendi.');
     } catch (e) { setState(() => notice = 'Hizmet eklenemedi: $e'); }
   }
-  @override void dispose() { serviceName.dispose(); price.dispose(); duration.dispose(); super.dispose(); }
+  Future<void> saveHours() async {
+    try {
+      await functions.httpsCallable('updateBusinessHours').call({'opening': opening.text.trim(), 'closing': closing.text.trim()});
+      if (mounted) setState(() => notice = 'Çalışma saatleri kaydedildi.');
+    } on FirebaseFunctionsException catch (e) {
+      if (mounted) setState(() => notice = e.message ?? 'Saatler kaydedilemedi.');
+    }
+  }
+  @override void dispose() { serviceName.dispose(); price.dispose(); duration.dispose(); opening.dispose(); closing.dispose(); super.dispose(); }
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(widget.profile['shopName'] ?? 'Berber paneli'), actions: [IconButton(onPressed: () => auth.signOut(), icon: const Icon(Icons.logout))]),
     body: ListView(padding: const EdgeInsets.all(16), children: [
@@ -363,6 +374,14 @@ class _BarberPageState extends State<BarberPage> {
       const SizedBox(height: 8),
       SelectableText('İşletme kodu: ${widget.profile['barberCode'] ?? 'Kod hazırlanıyor'}',
         style: const TextStyle(color: gold, fontSize: 16, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 18), const Text('Çalışma saatleri', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(child: TextField(controller: opening, decoration: const InputDecoration(labelText: 'Açılış (SS:DD)'))),
+        const SizedBox(width: 10),
+        Expanded(child: TextField(controller: closing, decoration: const InputDecoration(labelText: 'Kapanış (SS:DD)'))),
+      ]),
+      const SizedBox(height: 10), OutlinedButton(onPressed: saveHours, child: const Text('Çalışma saatlerini kaydet')),
       const SizedBox(height: 18), const Text('Hizmet yönetimi', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
       const SizedBox(height: 10), TextField(controller: serviceName, decoration: const InputDecoration(labelText: 'Hizmet adı')),
       const SizedBox(height: 10),

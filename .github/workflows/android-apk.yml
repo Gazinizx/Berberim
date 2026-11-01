@@ -26,6 +26,11 @@ jobs:
           if [ ! -d android ]; then flutter create --platforms=android --project-name=berberim .; fi
       - name: Install dependencies
         run: flutter pub get
+      - name: Check backend TypeScript
+        working-directory: functions
+        run: |
+          npm install
+          npm run build
       - name: Analyze Dart
         run: flutter analyze --no-pub
       - name: Build release APK
