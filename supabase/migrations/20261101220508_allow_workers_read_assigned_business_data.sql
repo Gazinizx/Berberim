@@ -1,0 +1,3 @@
+create policy "employees read their business" on public.businesses for select to authenticated using(exists(select 1 from public.employees e where e.business_id=businesses.id and e.user_id=(select auth.uid())));
+create policy "employees read their services" on public.services for select to authenticated using(exists(select 1 from public.employees e where e.business_id=services.business_id and e.user_id=(select auth.uid())));
+create policy "workers read customers from own appointments" on public.profiles for select to authenticated using(exists(select 1 from public.appointments a join public.employees e on e.id=a.employee_id where a.customer_id=profiles.id and e.user_id=(select auth.uid())));
