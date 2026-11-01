@@ -7,7 +7,7 @@ The active app uses Supabase Auth, PostgreSQL, RPC functions and Row Level Secur
 ## Main tables
 
 - profiles, businesses, business_memberships
-- employees, employee_invites
+- employees, employee_invites, business_reviews
 - services, business_hours, business_breaks
 - employee_hours, employee_breaks, employee_time_off
 - appointments, notifications
@@ -27,6 +27,8 @@ The active app uses Supabase Auth, PostgreSQL, RPC functions and Row Level Secur
 - join_business_by_code / leave_business: customer business membership lifecycle.
 - get_available_slots: returns employee-specific 30-minute starts, filtered by service duration, business/employee hours, breaks, time off and existing appointments.
 - book_appointment: revalidates the schedule server-side and inserts the appointment.
+- reschedule_appointment: moves a customer's confirmed appointment only to a currently available slot.
+- submit_business_review: accepts one 1–5 star review from the customer for a completed appointment.
 - update_appointment_status: owner or assigned worker updates status.
 
 An exclusion constraint prevents overlapping pending/confirmed appointments for the same employee. Different employees can accept appointments at the same time.
