@@ -1,24 +1,22 @@
 # Berberim
 
-Fresh Flutter application for a multi-shop barber appointment service.
+Berberim is a Flutter appointment app for barber businesses, their staff, and customers. The active backend is **Supabase** (PostgreSQL, Auth, RPC and Row Level Security). Firebase is not used.
 
-## Implemented in source
-- Email/password sign-in and account creation.
-- Customer registration using a shop code.
-- Barber application and administrator review flow.
-- Per-shop service management and customer appointment lists.
-- Callable backend booking transaction with a unique slot lock.
-- Cancellation and FCM notification functions.
-- Firestore rules that deny client-side writes to profiles, applications, bookings, and slot locks.
-- GitHub Actions Android release APK and unsigned iOS app builds.
+## App experience
 
-## Required deployment configuration
-This repository intentionally does not contain Firebase project credentials.
-Add these GitHub Actions repository secrets to activate the APK: FIREBASE_API_KEY, FIREBASE_APP_ID, FIREBASE_MESSAGING_SENDER_ID, FIREBASE_PROJECT_ID, and optionally FIREBASE_STORAGE_BUCKET. Without them the APK intentionally opens a setup screen instead of pretending a live backend exists.
-Deploy Cloud Functions and Firestore rules with a Firebase project:
-`firebase deploy --only functions,firestore:rules`
+- **Customers:** join one barber business with a code, book by service, employee, date and live availability, view appointment history, cancel eligible appointments, edit their profile, and leave their business to enter a new code.
+- **Business owners:** daily appointment overview, employee filter, invite-code based team onboarding, employee activation, services and prices, business hours and breaks.
+- **Workers:** separate role-based panel, own appointments and customer details, status updates, personal working hours, breaks and time off.
+- **Scheduling:** 30-minute candidate slots filtered by service duration, business hours, employee hours, breaks, leave and existing appointments. The database prevents overlapping active appointments for the same employee.
+- **Access control:** Supabase RLS and authenticated RPC functions restrict owner, worker and customer access.
 
-During Functions deployment, set the Firebase parameter ADMIN_EMAIL to the administrator's exact Firebase Auth email. Create an account with that email in the app, then tap "Yönetici hesabını etkinleştir". The callable verifies the configured email server-side and only initializes an account that has no profile. Never grant admin role directly from the client.
+## Backend
+
+The active Supabase project is configured through SUPABASE_URL and SUPABASE_ANON_KEY Dart defines. The public publishable/anon key is intended for client apps; authorization is enforced by database policies and functions. Never place a service-role key in the app.
+
+The professional app entrypoint is lib/professional_main.dart. Android APK workflow builds this entrypoint. The unsigned iOS workflow is prepared for the same entrypoint but is **not run automatically from this feature branch**.
 
 ## Build
-GitHub Actions -> **Build Android APK** for an APK artifact or **Build iOS App (unsigned)** for the iOS app bundle. A signed IPA for TestFlight/App Store still requires the Apple signing certificate, provisioning profile, and matching iOS Firebase app configuration.
+
+- GitHub Actions → **Build Android APK** creates the Android release artifact.
+- GitHub Actions → **Build iOS App (unsigned)** is manual-only; run it only when an iOS build is explicitly requested.
