@@ -154,10 +154,82 @@ class _WorkerPageState extends State<WorkerPage>{
  void refresh(){if(mounted)setState((){});}
  Future<void> status(String id,String value)async{try{await db.rpc('update_appointment_status',params:{'p_appointment_id':id,'p_status':value});refresh();}catch(e){snack(context,errorText(e));}}
  Widget schedule(){final start=DateTime(day.year,day.month,day.day),end=start.add(const Duration(days:1));return ListView(padding:const EdgeInsets.all(16),children:[titleBlock('Takvimim','${widget.business['name']} • Sana ait randevular'),Row(children:[Expanded(child:Text(dateText(day),style:const TextStyle(fontSize:18,fontWeight:FontWeight.w800))),IconButton(onPressed:()=>setState(()=>day=day.subtract(const Duration(days:1))),icon:const Icon(Icons.chevron_left)),IconButton(onPressed:()async{final d=await showDatePicker(context:context,initialDate:day,firstDate:DateTime.now().subtract(const Duration(days:365)),lastDate:DateTime.now().add(const Duration(days:365)));if(d!=null)setState(()=>day=d);},icon:const Icon(Icons.calendar_month)),IconButton(onPressed:()=>setState(()=>day=day.add(const Duration(days:1))),icon:const Icon(Icons.chevron_right))]),FutureBuilder<List<Map<String,dynamic>>>(future:db.from('appointments').select('*,services(name,price),profiles(full_name,phone)').eq('employee_id',widget.employee['id']).gte('starts_at',start.toUtc().toIso8601String()).lt('starts_at',end.toUtc().toIso8601String()).order('starts_at'),builder:(c,s){if(s.connectionState!=ConnectionState.done)return const Loading();if(s.hasError)return Text(errorText(s.error!));final rows=s.data??[];if(rows.isEmpty)return cardBox(const Text('Bu gün randevun yok.',style:TextStyle(color:muted)));return Column(children:rows.map((a){final service=(a['services'] as Map?)??{};final customer=(a['profiles'] as Map?)??{};final dt=localDate(a['starts_at']);return cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text(service['name']??'Randevu',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:16))),statusPill(a['status'])]),const SizedBox(height:8),tinyInfo(Icons.schedule,'${timeText(dt)} • ${dateText(dt)}'),const SizedBox(height:6),tinyInfo(Icons.person_outline,customer['full_name']??'Müşteri'),if((customer['phone']??'').toString().isNotEmpty)Text('Telefon: ${customer['phone']}',style:const TextStyle(color:muted,fontSize:12)),if(a['status']=='confirmed')Wrap(children:[TextButton(onPressed:()=>status(a['id'],'completed'),child:const Text('Tamamlandı')),TextButton(onPressed:()=>status(a['id'],'no_show'),child:const Text('Gelmedi'))]) ]));}).toList());})]);}
- Widget availability()=>ListView(padding:const EdgeInsets.all(16),children:[titleBlock('Çalışma saatlerim','Kendi uygunluk ve izinlerini düzenle'),cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Haftalık çalışma saatleri',style:TextStyle(fontWeight:FontWeight.w800,fontSize:17)),const Text('Özel saat tanımlanmayan günler işletmenin genel saatlerini kullanır.',style:TextStyle(color:muted,fontSize:12)),const SizedBox(height:10),Row(children:[Expanded(child:TextField(controller:opening,decoration:const InputDecoration(labelText:'Başlangıç'))),const SizedBox(width:10),Expanded(child:TextField(controller:closing,decoration:const InputDecoration(labelText:'Bitiş')))]),const SizedBox(height:10),ElevatedButton(onPressed:()async{try{for(var d=0;d<7;d++){await db.from('employee_hours').upsert({'employee_id':widget.employee['id'],'weekday':d,'opens_at':opening.text,'closes_at':closing.text,'is_closed':false},onConflict:'employee_id,weekday');}snack(context,'Çalışma saatlerin kaydedildi');}catch(e){snack(context,errorText(e));}},child:const Text('Her güne uygula')),const Divider(height:25),const Text('Kişisel mola',style:TextStyle(fontWeight:FontWeight.w800)),Row(children:[Expanded(child:TextField(controller:breakStart,decoration:const InputDecoration(labelText:'Başlangıç'))),const SizedBox(width:10),Expanded(child:TextField(controller:breakEnd,decoration:const InputDecoration(labelText:'Bitiş')))]),const SizedBox(height:10),OutlinedButton(onPressed:()async{try{if(breakStart.text.compareTo(breakEnd.text)>=0)throw Exception('Mola saatlerini kontrol et');await db.from('employee_breaks').delete().eq('employee_id',widget.employee['id']);for(var d=1;d<7;d++){await db.from('employee_breaks').insert({'employee_id':widget.employee['id'],'weekday':d,'starts_at':breakStart.text,'ends_at':breakEnd.text});}snack(context,'Molaların kaydedildi');}catch(e){snack(context,errorText(e));}},child:const Text('Molayı haftaya uygula'))])),
- cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('İzin ekle',style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:8),OutlinedButton.icon(onPressed:()async{final d=await showDatePicker(context:context,initialDate:DateTime.now().add(const Duration(days:1)),firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:365)));if(d==null)return;try{final s=DateTime(d.year,d.month,d.day),e=s.add(const Duration(days:1));await db.from('employee_time_off').insert({'employee_id':widget.employee['id'],'starts_at':s.toUtc().toIso8601String(),'ends_at':e.toUtc().toIso8601String(),'note':'Tam gün izin'});refresh();}catch(x){snack(context,errorText(x));}},icon:const Icon(Icons.event_busy),label:const Text('Tam gün izin ekle'))])),
- FutureBuilder<List<Map<String,dynamic>>>(future:db.from('employee_time_off').select().eq('employee_id',widget.employee['id']).gte('ends_at',DateTime.now().toUtc().toIso8601String()).order('starts_at'),builder:(c,s)=>Column(children:(s.data??[]).map((x)=>ListTile(leading:const Icon(Icons.event_busy,color:gold),title:Text(dateText(localDate(x['starts_at']))),subtitle:Text(x['note']??'İzin'),trailing:IconButton(onPressed:()async{await db.from('employee_time_off').delete().eq('id',x['id']);refresh();},icon:const Icon(Icons.delete_outline)))).toList()))
- ]);}
+ Widget availability() {
+  final eid=widget.employee['id'];
+  return FutureBuilder<List<Map<String,dynamic>>>(
+   future:db.from('employee_time_off').select().eq('employee_id',eid).gte('ends_at',DateTime.now().toUtc().toIso8601String()).order('starts_at'),
+   builder:(context,snapshot) {
+    final rows=snapshot.data??[];
+    return ListView(
+     padding:const EdgeInsets.all(16),
+     children:<Widget>[
+      titleBlock('Çalışma saatlerim','Kendi uygunluk ve izinlerini düzenle'),
+      cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const Text('Haftalık çalışma saatleri',style:TextStyle(fontWeight:FontWeight.w800,fontSize:17)),
+       const Text('Özel saat tanımlanmayan günler işletmenin genel saatlerini kullanır.',style:TextStyle(color:muted,fontSize:12)),
+       const SizedBox(height:10),
+       Row(children:[
+        Expanded(child:TextField(controller:opening,decoration:const InputDecoration(labelText:'Başlangıç'))),
+        const SizedBox(width:10),
+        Expanded(child:TextField(controller:closing,decoration:const InputDecoration(labelText:'Bitiş'))),
+       ]),
+       const SizedBox(height:10),
+       ElevatedButton(onPressed:()async {
+        try {
+         for(var d=0;d<7;d++){
+          await db.from('employee_hours').upsert({'employee_id':eid,'weekday':d,'opens_at':opening.text,'closes_at':closing.text,'is_closed':false},onConflict:'employee_id,weekday');
+         }
+         if(mounted)snack(context,'Çalışma saatlerin kaydedildi');
+        } catch(e) { if(mounted)snack(context,errorText(e)); }
+       },child:const Text('Her güne uygula')),
+       const Divider(height:25),
+       const Text('Kişisel mola',style:TextStyle(fontWeight:FontWeight.w800)),
+       Row(children:[
+        Expanded(child:TextField(controller:breakStart,decoration:const InputDecoration(labelText:'Başlangıç'))),
+        const SizedBox(width:10),
+        Expanded(child:TextField(controller:breakEnd,decoration:const InputDecoration(labelText:'Bitiş'))),
+       ]),
+       const SizedBox(height:10),
+       OutlinedButton(onPressed:()async {
+        try {
+         if(breakStart.text.compareTo(breakEnd.text)>=0)throw Exception('Mola saatlerini kontrol et');
+         await db.from('employee_breaks').delete().eq('employee_id',eid);
+         for(var d=1;d<7;d++){
+          await db.from('employee_breaks').insert({'employee_id':eid,'weekday':d,'starts_at':breakStart.text,'ends_at':breakEnd.text});
+         }
+         if(mounted)snack(context,'Molaların kaydedildi');
+        } catch(e) { if(mounted)snack(context,errorText(e)); }
+       },child:const Text('Molayı haftaya uygula')),
+      ])),
+      cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const Text('İzin ekle',style:TextStyle(fontWeight:FontWeight.w800)),
+       const SizedBox(height:8),
+       OutlinedButton.icon(onPressed:()async {
+        final d=await showDatePicker(context:context,initialDate:DateTime.now().add(const Duration(days:1)),firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:365)));
+        if(d==null||!mounted)return;
+        try {
+         final from=DateTime(d.year,d.month,d.day),to=from.add(const Duration(days:1));
+         await db.from('employee_time_off').insert({'employee_id':eid,'starts_at':from.toUtc().toIso8601String(),'ends_at':to.toUtc().toIso8601String(),'note':'Tam gün izin'});
+         refresh();
+        } catch(e) { if(mounted)snack(context,errorText(e)); }
+       },icon:const Icon(Icons.event_busy),label:const Text('Tam gün izin ekle')),
+      ])),
+      if(snapshot.hasError)Text(errorText(snapshot.error!)),
+      if(snapshot.connectionState==ConnectionState.done&&rows.isNotEmpty)
+       ...rows.map((x)=>ListTile(
+        leading:const Icon(Icons.event_busy,color:gold),
+        title:Text(dateText(localDate(x['starts_at']))),
+        subtitle:Text(x['note']??'İzin'),
+        trailing:IconButton(onPressed:()async {
+         try { await db.from('employee_time_off').delete().eq('id',x['id']); refresh(); }
+         catch(e) { if(mounted)snack(context,errorText(e)); }
+        },icon:const Icon(Icons.delete_outline)),
+       )),
+     ],
+    );
+   },
+  );
+ }
  @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:Text(widget.employee['display_name']??'Çalışan paneli'),actions:[notifications(c),logout()]),body:tab==0?schedule():availability(),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const [NavigationDestination(icon:Icon(Icons.calendar_month_outlined),label:'Takvimim'),NavigationDestination(icon:Icon(Icons.schedule),label:'Çalışma saatlerim')]));
 }
 
