@@ -9,6 +9,9 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   appwrite: ^13.0.0
+
+dependency_overrides:
+  flutter_web_auth_2: ^5.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
