@@ -1,24 +1,44 @@
 # Berberim
 
-Fresh Flutter application for a multi-shop barber appointment service.
+Flutter application for Android and iOS, using Supabase Auth and PostgreSQL.
 
-## Implemented in source
-- Email/password sign-in and account creation.
-- Customer registration using a shop code.
-- Barber application and administrator review flow.
-- Per-shop service management and customer appointment lists.
-- Callable backend booking transaction with a unique slot lock.
-- Cancellation and FCM notification functions.
-- Firestore rules that deny client-side writes to profiles, applications, bookings, and slot locks.
-- GitHub Actions Android release APK and unsigned iOS app builds.
+## Backend
+- Supabase project: `tzwlbwhokvnjekwwpnsr`
+- Client uses the project URL and publishable key. The publishable key is designed for client apps; never put a `service_role` or secret key in Flutter.
+- RLS is enabled on all application tables.
+- Booking and cancellation run through PostgreSQL RPC functions. An exclusion constraint prevents overlapping confirmed appointments for the same employee.
+- Businesses are created as pending and require an administrator to activate them.
+- Customer membership is established through the unique business join code.
 
-## Required deployment configuration
-This repository intentionally does not contain Firebase project credentials.
-Add these GitHub Actions repository secrets to activate the APK: FIREBASE_API_KEY, FIREBASE_APP_ID, FIREBASE_MESSAGING_SENDER_ID, FIREBASE_PROJECT_ID, and optionally FIREBASE_STORAGE_BUCKET. Without them the APK intentionally opens a setup screen instead of pretending a live backend exists.
-Deploy Cloud Functions and Firestore rules with a Firebase project:
-`firebase deploy --only functions,firestore:rules`
+## First administrator
+Create the administrator's account through the app first. Then, in the Supabase SQL Editor, find the account and grant the initial administrator flag using the exact account email:
 
-During Functions deployment, set the Firebase parameter ADMIN_EMAIL to the administrator's exact Firebase Auth email. Create an account with that email in the app, then tap "Yönetici hesabını etkinleştir". The callable verifies the configured email server-side and only initializes an account that has no profile. Never grant admin role directly from the client.
+```sql
+update public.profiles
+set is_admin = true
+where id = (
+  select id from auth.users
+  where lower(email) = lower('YOUR_ADMIN_EMAIL')
+);
+```
 
-## Build
-GitHub Actions -> **Build Android APK** for an APK artifact or **Build iOS App (unsigned)** for the iOS app bundle. A signed IPA for TestFlight/App Store still requires the Apple signing certificate, provisioning profile, and matching iOS Firebase app configuration.
+Replace the placeholder with the administrator account's email. Do not expose an admin/service-role key in the app.
+
+## Run locally
+```sh
+flutter pub get
+flutter run
+```
+
+The Supabase URL and publishable key are public client configuration and are currently supplied as build defaults in `lib/main.dart`.
+
+## GitHub Actions
+- **Build Android APK** creates a release APK artifact.
+- **Build iOS App (unsigned)** creates an unsigned iOS app artifact. A signed IPA/TestFlight upload still requires Apple signing credentials and provisioning.
+
+Both workflows run on pushes to `supabase-migration` and can also be started manually.
+
+## Current implementation scope
+Email/password auth, customer profile setup, join-code membership, business application/approval, employee and service management, opening-hours defaults, appointment creation/cancellation and realtime appointment list are wired to Supabase.
+
+Push notifications/reminders, full weekly schedule and break editor, employee account invitations, and full appointment slot availability UI remain follow-up work; they are not claimed as complete yet.
