@@ -144,7 +144,7 @@ export const updateBusinessHours = onCall(async (request) => {
   if (user.role !== "barber" || user.status !== "approved") throw new HttpsError("permission-denied", "Onaylı berber hesabı gerekli.");
   const opening = String(request.data?.opening ?? "");
   const closing = String(request.data?.closing ?? "");
-  const valid = (v: string) => /^([01]\\d|2[0-3]):[0-5]\\d$/.test(v);
+  const valid = (v: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
   if (!valid(opening) || !valid(closing) || opening >= closing) throw new HttpsError("invalid-argument", "Çalışma saatlerini SS:DD biçiminde gir; kapanış açılıştan sonra olmalı.");
   await db.doc(`users/${uid}`).update({workingHours: {opening, closing}});
   return {ok: true};
@@ -158,7 +158,7 @@ export const bookAppointment = onCall(async (request) => {
   const time = String(request.data?.time ?? "");
   const serviceId = String(request.data?.serviceId ?? "");
   const startAtMillis = Number(request.data?.startAtMillis);
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time) ||
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) ||
       !serviceId || !Number.isFinite(startAtMillis)) {
     throw new HttpsError("invalid-argument", "Tarih, saat veya hizmet geçersiz.");
   }
