@@ -34,7 +34,8 @@ class BerberimApp extends StatelessWidget {
 class Appointment {
   Appointment({required this.id, required this.name, required this.phone, required this.service,
     required this.date, required this.time, required this.price, this.done = false});
-  final String id, name, phone, service, date, time;
+  final String id;
+  String name, phone, service, date, time;
   final int price;
   bool done;
   Map<String, dynamic> toJson() => {'id':id,'name':name,'phone':phone,'service':service,
