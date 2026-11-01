@@ -12,7 +12,8 @@ as $$
     where p.id = auth.uid() and p.is_admin = true
   );
 $$;
-revoke all on function private.is_admin() from public, anon, authenticated;
+revoke all on function private.is_admin() from public, anon;
+grant execute on function private.is_admin() to authenticated;
 
 drop policy if exists "employees visible to business members" on public.employees;
 create policy "employees visible to business members" on public.employees
