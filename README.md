@@ -1,11 +1,24 @@
 # Berberim
 
-Fresh Flutter project for a multi-shop barber appointment app (Android/iOS).
+Fresh Flutter application for a multi-shop barber appointment service.
 
-## Current state
-- Fresh app shell and Android APK workflow.
-- Firebase packages declared, but Firebase project options, authentication flows, Firestore schema/rules, and server-side booking transaction are not configured yet.
-- No production booking is enabled until those security-sensitive parts are implemented and tested.
+## Implemented in source
+- Email/password sign-in and account creation.
+- Customer registration using a shop code.
+- Barber application and administrator review flow.
+- Per-shop service management and customer appointment lists.
+- Callable backend booking transaction with a unique slot lock.
+- Cancellation and FCM notification functions.
+- Firestore rules that deny client-side writes to profiles, applications, bookings, and slot locks.
+- GitHub Actions Android release APK build.
 
-## Build APK
-Run the **Build Android APK** workflow from GitHub Actions. The APK is uploaded as an artifact when the build passes.
+## Required deployment configuration
+This repository intentionally does not contain Firebase project credentials.
+Set Flutter build defines for FIREBASE_API_KEY, FIREBASE_APP_ID, FIREBASE_MESSAGING_SENDER_ID, and FIREBASE_PROJECT_ID to activate the app.
+Deploy Cloud Functions and Firestore rules with a Firebase project:
+`firebase deploy --only functions,firestore:rules`
+
+The first administrator profile must be provisioned by a trusted administrator using Firebase Admin SDK; never grant admin role from the client app.
+
+## Build
+GitHub Actions -> **Build Android APK**. The generated APK is uploaded as a workflow artifact.

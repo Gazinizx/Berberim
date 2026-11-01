@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function userData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function approvedBarber() {
+      return signedIn() && userData().role == 'barber' && userData().status == 'approved';
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      // Role/status/barberId are assigned by trusted callable functions only.
+      allow create, update, delete: if false;
+    }
+    match /barberApplications/{id} {
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow write: if false;
+    }
+    match /barberCodes/{code} { allow read, write: if false; }
+    match /services/{id} {
+      allow read: if signedIn() &&
+        (resource.data.isActive == true ||
+         (approvedBarber() && resource.data.barberId == request.auth.uid) || isAdmin());
+      allow create: if approvedBarber() &&
+        request.resource.data.barberId == request.auth.uid &&
+        request.resource.data.keys().hasOnly(['barberId','name','price','durationMinutes','isActive','createdAt']);
+      allow update, delete: if approvedBarber() && resource.data.barberId == request.auth.uid;
+    }
+    match /appointments/{id} {
+      allow read: if signedIn() &&
+        (resource.data.customerId == request.auth.uid ||
+         resource.data.barberId == request.auth.uid || isAdmin());
+      // Appointment creation/cancellation is performed through callable functions.
+      allow write: if false;
+    }
+    match /slotLocks/{id} { allow read, write: if false; }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
