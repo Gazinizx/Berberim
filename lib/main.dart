@@ -86,7 +86,6 @@ class AuthGate extends StatelessWidget {
 class BlockedPage extends StatelessWidget { const BlockedPage({super.key}); @override Widget build(BuildContext c)=>Scaffold(body:Center(child:Padding(padding:const EdgeInsets.all(24),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.block,color:Colors.redAccent,size:56),const SizedBox(height:16),const Text('Hesabın geçici olarak engellendi',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),const SizedBox(height:12),OutlinedButton(onPressed:()=>sb.auth.signOut(),child:const Text('Çıkış yap'))])))); }
 class LoadingPage extends StatelessWidget { const LoadingPage({super.key}); @override Widget build(BuildContext c)=>const Scaffold(body:Center(child:CircularProgressIndicator(color:gold))); }
 class ErrorPage extends StatelessWidget { const ErrorPage({super.key,required this.message}); final String message; @override Widget build(BuildContext c)=>Scaffold(body:Center(child:Padding(padding:const EdgeInsets.all(24),child:Text(message,textAlign:TextAlign.center)))); }
-class BlockedPage extends StatelessWidget { const BlockedPage({super.key}); @override Widget build(BuildContext c)=>Scaffold(body:Center(child:Padding(padding:const EdgeInsets.all(24),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.block,color:Colors.redAccent,size:56),const SizedBox(height:14),const Text('Hesabın geçici olarak engellendi',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold),textAlign:TextAlign.center),const SizedBox(height:14),OutlinedButton(onPressed:()=>sb.auth.signOut(),child:const Text('Çıkış yap'))])))); }
 void toast(BuildContext c,String s)=>ScaffoldMessenger.of(c).showSnackBar(SnackBar(content:Text(s)));
 
 class LoginPage extends StatefulWidget { const LoginPage({super.key}); @override State<LoginPage> createState()=>_LoginPageState(); }
@@ -144,13 +143,6 @@ class _AdminPageState extends State<AdminPage>{
 }
 
 
-class NotificationPage extends StatefulWidget { const NotificationPage({super.key}); @override State<NotificationPage> createState()=>_NotificationPageState(); }
-class _NotificationPageState extends State<NotificationPage>{
- Future<List<Map<String,dynamic>>> load()=>sb.from('notifications').select().eq('user_id',uid).order('created_at',ascending:false).limit(100);
- Future<void> markRead(String id) async {try{await sb.from('notifications').update({'read_at':DateTime.now().toUtc().toIso8601String()}).eq('id',id);if(mounted)setState((){});}catch(e){if(mounted)toast(context,err(e));}}
- @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('Bildirimler')),body:FutureBuilder<List<Map<String,dynamic>>>(future:load(),builder:(c,s){if(s.connectionState!=ConnectionState.done)return const LoadingPage();if(s.hasError)return ErrorPage(message:err(s.error!));final rows=s.data??[];if(rows.isEmpty)return const Center(child:Text('Henüz bildirimin yok.'));return ListView(children:rows.map((n)=>ListTile(leading:Icon(n['read_at']==null?Icons.notifications_active:Icons.notifications_none,color:n['read_at']==null?gold:Colors.white54),title:Text(n['title']),subtitle:Text(n['body']),trailing:n['read_at']==null?IconButton(icon:const Icon(Icons.done),onPressed:()=>markRead(n['id'])):null)).toList());}));
-}
-
 class BarberPage extends StatefulWidget { const BarberPage({super.key,required this.business}); final Map<String,dynamic> business; @override State<BarberPage> createState()=>_BarberPageState(); }
 class _BarberPageState extends State<BarberPage>{
  final service=TextEditingController(),price=TextEditingController(),duration=TextEditingController(text:'30'),employee=TextEditingController(),open=TextEditingController(text:'09:00'),close=TextEditingController(text:'20:00'),breakStart=TextEditingController(text:'13:00'),breakEnd=TextEditingController(text:'14:00');
@@ -192,22 +184,9 @@ class _CustomerPageState extends State<CustomerPage>{
  final joinCode=TextEditingController(); String? businessId,employeeId,serviceId; String selectedTime='10:00'; DateTime day=DateTime.now().add(const Duration(days:1)); bool busy=false;
  Future<void> joinBusiness()async{try{await sb.rpc('join_business_by_code',params:{'p_code':joinCode.text.trim().toUpperCase()});joinCode.clear();setState((){});toast(context,'İşletmeye katıldın');}catch(e){toast(context,err(e));}}
  String date(DateTime d)=>'${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
- Future<void> joinAnother(BuildContext pageContext) async {
-   final input=TextEditingController();
-   final accepted=await showDialog<bool>(context:pageContext,builder:(dialogContext)=>AlertDialog(
-     title:const Text('İşletmeye katıl'),
-     content:TextField(controller:input,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(labelText:'İşletme katılım kodu')),
-     actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Vazgeç')),ElevatedButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('Katıl'))]));
-   if(accepted==true && input.text.trim().isNotEmpty){
-     try{await sb.rpc('join_business_by_code',params:{'p_code':input.text.trim().toUpperCase()});if(!mounted)return;setState(()=>businessId=null);toast(pageContext,'İşletmeye katıldın.');}
-     catch(e){if(mounted)toast(pageContext,err(e));}
-   }
-   input.dispose();
- }
-
  Future<void> book()async{if(businessId==null||employeeId==null||serviceId==null)return;setState(()=>busy=true);try{final parts=selectedTime.split(':').map(int.parse).toList(); final local=DateTime(day.year,day.month,day.day,parts[0],parts[1]);await sb.rpc('book_appointment',params:{'p_business_id':businessId,'p_employee_id':employeeId,'p_service_id':serviceId,'p_starts_at':local.toUtc().toIso8601String()});toast(context,'Randevun onaylandı');}catch(e){toast(context,err(e));}if(mounted)setState(()=>busy=false);}
  @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('Berberim'),actions:[notificationAction(context),IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout))]),body:FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('business_memberships').select('business_id, businesses(id,name)').eq('customer_id',uid),builder:(c,m){if(!m.hasData)return const LoadingPage();final businesses=(m.data??[]).map((x)=>x['businesses']).whereType<Map<String,dynamic>>().toList();return ListView(padding:const EdgeInsets.all(16),children:[
- const Text('Randevu oluştur',style:TextStyle(fontSize:25,fontWeight:FontWeight.w800)),const SizedBox(height:12),OutlinedButton.icon(onPressed:()=>joinAnother(c),icon:const Icon(Icons.add_business),label:const Text('Başka işletmeye katıl')),const SizedBox(height:12),
+ const Text('Randevu oluştur',style:TextStyle(fontSize:25,fontWeight:FontWeight.w800)),const SizedBox(height:12),
  TextField(controller:joinCode,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(labelText:'Yeni işletme katılım kodu')),const SizedBox(height:8),OutlinedButton(onPressed:joinBusiness,child:const Text('İşletmeye katıl')),
  if(businesses.isEmpty)const Text('Henüz bir işletmeye katılmadın.'),
  DropdownButtonFormField<String>(value:businessId,decoration:const InputDecoration(labelText:'İşletme seç'),items:businesses.map((b)=>DropdownMenuItem(value:b['id'] as String,child:Text(b['name']))).toList(),onChanged:(v)=>setState(()=>businessId=v)),
