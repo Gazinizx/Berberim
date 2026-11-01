@@ -20,6 +20,7 @@ Future<void> main()async{
  if(url.isNotEmpty&&key.isNotEmpty)await Supabase.initialize(url:url,publishableKey:key);
  runApp(const BerberimApp());
 }
+class _InstantPageTransitionsBuilder extends PageTransitionsBuilder{const _InstantPageTransitionsBuilder();@override Widget buildTransitions<T>(PageRoute<T> route,BuildContext context,Animation<double> animation,Animation<double> secondaryAnimation,Widget child)=>child;}
 class BerberimApp extends StatelessWidget{
  const BerberimApp({super.key});
  @override Widget build(BuildContext c)=>MaterialApp(title:'Berberim',debugShowCheckedModeBanner:false,theme:ThemeData(
@@ -33,6 +34,7 @@ class BerberimApp extends StatelessWidget{
   outlinedButtonTheme:OutlinedButtonThemeData(style:OutlinedButton.styleFrom(foregroundColor:ivory,minimumSize:const Size.fromHeight(48),side:const BorderSide(color:line),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(15)))),
   navigationBarTheme:const NavigationBarThemeData(backgroundColor:panel,indicatorColor:Color(0x33D6A64B),height:72,labelTextStyle:WidgetStatePropertyAll(TextStyle(fontSize:11,fontWeight:FontWeight.w700))),
   dialogTheme:DialogThemeData(backgroundColor:panel,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22))),
+  pageTransitionsTheme:const PageTransitionsTheme(builders:{TargetPlatform.android:_InstantPageTransitionsBuilder(),TargetPlatform.iOS:_InstantPageTransitionsBuilder(),TargetPlatform.linux:_InstantPageTransitionsBuilder(),TargetPlatform.macOS:_InstantPageTransitionsBuilder(),TargetPlatform.windows:_InstantPageTransitionsBuilder(),TargetPlatform.fuchsia:_InstantPageTransitionsBuilder()}),
  ),home:const ConfigGate());
 }
 class ConfigGate extends StatelessWidget{
