@@ -3,6 +3,6 @@ import 'package:berberim/main.dart';
 
 void main() {
   test('Berberim theme uses the agreed gold accent', () {
-    expect(gold.value, 0xFFFF7A1A);
+    expect(gold.value, 0xFFD6A64B);
   });
 }
