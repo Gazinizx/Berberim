@@ -65,6 +65,7 @@ class AuthGate extends StatelessWidget {
           if (snap.hasError) return ErrorPage(message: err(snap.error!));
           if (snap.data == null) return const ProfilePage();
           final p = snap.data!;
+          if (p['is_blocked'] == true) return const BlockedPage();
           if (p['is_admin'] == true) return const AdminPage();
           return FutureBuilder<List<Map<String,dynamic>>>(
             future: sb.from('businesses').select().eq('owner_id', uid).order('created_at'),
@@ -82,6 +83,7 @@ class AuthGate extends StatelessWidget {
     });
 }
 
+class BlockedPage extends StatelessWidget { const BlockedPage({super.key}); @override Widget build(BuildContext c)=>Scaffold(body:Center(child:Padding(padding:const EdgeInsets.all(24),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.block,color:Colors.redAccent,size:56),const SizedBox(height:16),const Text('Hesabın geçici olarak engellendi',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),const SizedBox(height:12),OutlinedButton(onPressed:()=>sb.auth.signOut(),child:const Text('Çıkış yap'))])))); }
 class LoadingPage extends StatelessWidget { const LoadingPage({super.key}); @override Widget build(BuildContext c)=>const Scaffold(body:Center(child:CircularProgressIndicator(color:gold))); }
 class ErrorPage extends StatelessWidget { const ErrorPage({super.key,required this.message}); final String message; @override Widget build(BuildContext c)=>Scaffold(body:Center(child:Padding(padding:const EdgeInsets.all(24),child:Text(message,textAlign:TextAlign.center)))); }
 void toast(BuildContext c,String s)=>ScaffoldMessenger.of(c).showSnackBar(SnackBar(content:Text(s)));
@@ -130,7 +132,13 @@ class AdminPage extends StatefulWidget { const AdminPage({super.key}); @override
 class _AdminPageState extends State<AdminPage>{
  Future<List<Map<String,dynamic>>> load()=>sb.from('businesses').select().order('created_at',ascending:false);
  Future<void> review(String id,String status) async {try{await sb.rpc('review_business',params:{'p_business_id':id,'p_status':status});setState((){});}catch(e){toast(context,err(e));}}
- @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('Yönetici paneli'),actions:[IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout))]),body:FutureBuilder<List<Map<String,dynamic>>>(future:load(),builder:(c,s){if(!s.hasData)return const LoadingPage();if(s.hasError)return ErrorPage(message:err(s.error!));return ListView(padding:const EdgeInsets.all(16),children:s.data!.map((b)=>Card(child:ListTile(title:Text(b['name']),subtitle:Text('Durum: ${b['status']} • Kod: ${b['join_code']}'),trailing:PopupMenuButton<String>(onSelected:(v)=>review(b['id'],v),itemBuilder:(_)=>const [PopupMenuItem(value:'active',child:Text('Onayla')),PopupMenuItem(value:'rejected',child:Text('Reddet')),PopupMenuItem(value:'inactive',child:Text('Pasife al'))])))).toList());}));
+ Future<void> block(String id,bool value) async {try{await sb.rpc('admin_set_user_blocked',params:{'p_user_id':id,'p_blocked':value});setState((){});}catch(e){toast(context,err(e));}}
+ @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('Yönetici paneli'),actions:[IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout))]),body:ListView(padding:const EdgeInsets.all(16),children:[
+ const Text('İşletme başvuruları',style:TextStyle(fontSize:21,fontWeight:FontWeight.bold)),
+ FutureBuilder<List<Map<String,dynamic>>>(future:load(),builder:(c,s){if(s.connectionState!=ConnectionState.done)return const LoadingPage();if(s.hasError)return ErrorPage(message:err(s.error!));return Column(children:(s.data??[]).map((b)=>Card(child:ListTile(title:Text(b['name']),subtitle:Text('Durum: ${b['status']} • Kod: ${b['join_code']}'),trailing:PopupMenuButton<String>(onSelected:(v)=>review(b['id'],v),itemBuilder:(_)=>const [PopupMenuItem(value:'active',child:Text('Onayla')),PopupMenuItem(value:'rejected',child:Text('Reddet')),PopupMenuItem(value:'inactive',child:Text('Pasife al'))])))).toList());}),
+ const SizedBox(height:22),const Text('Kullanıcılar',style:TextStyle(fontSize:21,fontWeight:FontWeight.bold)),
+ FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('profiles').select().order('created_at',ascending:false),builder:(c,s){if(s.connectionState!=ConnectionState.done)return const LoadingPage();if(s.hasError)return ErrorPage(message:err(s.error!));return Column(children:(s.data??[]).map((p)=>ListTile(title:Text((p['full_name']??'İsimsiz kullanıcı').toString()),subtitle:Text(p['id'].toString()),trailing:Switch(value:p['is_blocked']==true,onChanged:(v)=>block(p['id'],v)))).toList());})
+ ]));
 }
 
 class BarberPage extends StatefulWidget { const BarberPage({super.key,required this.business}); final Map<String,dynamic> business; @override State<BarberPage> createState()=>_BarberPageState(); }
@@ -140,7 +148,7 @@ class _BarberPageState extends State<BarberPage>{
  Future<void> addService()async{try{await sb.from('services').insert({'business_id':widget.business['id'],'name':service.text.trim(),'price':double.parse(price.text),'duration_minutes':int.parse(duration.text)});service.clear();price.clear();refresh();}catch(e){toast(context,err(e));}}
  Future<void> addEmployee()async{try{await sb.from('employees').insert({'business_id':widget.business['id'],'display_name':employee.text.trim()});employee.clear();refresh();}catch(e){toast(context,err(e));}}
  Future<void> saveHours()async{try{for(var d=0;d<7;d++){await sb.from('business_hours').upsert({'business_id':widget.business['id'],'weekday':d,'opens_at':open.text,'closes_at':close.text,'is_closed':false},onConflict:'business_id,weekday');}toast(context,'Çalışma saatleri kaydedildi');}catch(e){toast(context,err(e));}}
- @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:Text(widget.business['name']),actions:[IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout))]),body:ListView(padding:const EdgeInsets.all(16),children:[
+ @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:Text(widget.business['name']),actions:[notificationAction(context),IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout))]),body:ListView(padding:const EdgeInsets.all(16),children:[
  const Text('İşletme kodun',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),SelectableText(widget.business['join_code'],style:const TextStyle(color:gold,fontSize:24,fontWeight:FontWeight.bold)),
  const SizedBox(height:18),const Text('Çalışma saatleri',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold)),Row(children:[Expanded(child:TextField(controller:open,decoration:const InputDecoration(labelText:'Açılış'))),const SizedBox(width:8),Expanded(child:TextField(controller:close,decoration:const InputDecoration(labelText:'Kapanış')))]),const SizedBox(height:8),OutlinedButton(onPressed:saveHours,child:const Text('Haftanın tüm günlerine uygula')),
  const SizedBox(height:18),const Text('Çalışanlar',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold)),TextField(controller:employee,decoration:const InputDecoration(labelText:'Çalışan adı')),const SizedBox(height:8),OutlinedButton(onPressed:addEmployee,child:const Text('Çalışan ekle')),
@@ -169,12 +177,14 @@ class _NotificationsPageState extends State<NotificationsPage>{
 
 class CustomerPage extends StatefulWidget { const CustomerPage({super.key}); @override State<CustomerPage> createState()=>_CustomerPageState(); }
 class _CustomerPageState extends State<CustomerPage>{
- String? businessId,employeeId,serviceId; String selectedTime='10:00'; DateTime day=DateTime.now().add(const Duration(days:1)); bool busy=false;
+ final joinCode=TextEditingController(); String? businessId,employeeId,serviceId; String selectedTime='10:00'; DateTime day=DateTime.now().add(const Duration(days:1)); bool busy=false;
+ Future<void> joinBusiness()async{try{await sb.rpc('join_business_by_code',params:{'p_code':joinCode.text.trim().toUpperCase()});joinCode.clear();setState((){});toast(context,'İşletmeye katıldın');}catch(e){toast(context,err(e));}}
  String date(DateTime d)=>'${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
  Future<void> book()async{if(businessId==null||employeeId==null||serviceId==null)return;setState(()=>busy=true);try{final parts=selectedTime.split(':').map(int.parse).toList(); final local=DateTime(day.year,day.month,day.day,parts[0],parts[1]);await sb.rpc('book_appointment',params:{'p_business_id':businessId,'p_employee_id':employeeId,'p_service_id':serviceId,'p_starts_at':local.toUtc().toIso8601String()});toast(context,'Randevun onaylandı');}catch(e){toast(context,err(e));}if(mounted)setState(()=>busy=false);}
  @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('Berberim'),actions:[notificationAction(context),IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout))]),body:FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('business_memberships').select('business_id, businesses(id,name)').eq('customer_id',uid),builder:(c,m){if(!m.hasData)return const LoadingPage();final businesses=(m.data??[]).map((x)=>x['businesses']).whereType<Map<String,dynamic>>().toList();return ListView(padding:const EdgeInsets.all(16),children:[
  const Text('Randevu oluştur',style:TextStyle(fontSize:25,fontWeight:FontWeight.w800)),const SizedBox(height:12),
- if(businesses.isEmpty)const Text('Henüz bir işletmeye katılmadın. Profilinden işletme koduyla katılabilirsin.'),
+ TextField(controller:joinCode,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(labelText:'Yeni işletme katılım kodu')),const SizedBox(height:8),OutlinedButton(onPressed:joinBusiness,child:const Text('İşletmeye katıl')),
+ if(businesses.isEmpty)const Text('Henüz bir işletmeye katılmadın.'),
  DropdownButtonFormField<String>(value:businessId,decoration:const InputDecoration(labelText:'İşletme seç'),items:businesses.map((b)=>DropdownMenuItem(value:b['id'] as String,child:Text(b['name']))).toList(),onChanged:(v)=>setState(()=>businessId=v)),
  if(businessId!=null)FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('employees').select().eq('business_id',businessId!).eq('is_active',true),builder:(c,s)=>DropdownButtonFormField<String>(value:employeeId,decoration:const InputDecoration(labelText:'Berber seç'),items:(s.data??[]).map((e)=>DropdownMenuItem(value:e['id'] as String,child:Text(e['display_name']))).toList(),onChanged:(v)=>setState(()=>employeeId=v))),
  if(businessId!=null)FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('services').select().eq('business_id',businessId!).eq('is_active',true),builder:(c,s)=>DropdownButtonFormField<String>(value:serviceId,decoration:const InputDecoration(labelText:'Hizmet seç'),items:(s.data??[]).map((e)=>DropdownMenuItem(value:e['id'] as String,child:Text('${e['name']} • ${e['price']} TL / ${e['duration_minutes']} dk'))).toList(),onChanged:(v)=>setState(()=>serviceId=v))),
