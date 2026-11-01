@@ -1,0 +1,2 @@
+create index if not exists business_reviews_business_id_idx on public.business_reviews(business_id);
+create index if not exists business_reviews_customer_id_idx on public.business_reviews(customer_id);
