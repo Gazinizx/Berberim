@@ -12,11 +12,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   const url = String.fromEnvironment('SUPABASE_URL');
   const key = String.fromEnvironment('SUPABASE_ANON_KEY');
-  runApp(const BerberimApp());
   if (url.isNotEmpty && key.isNotEmpty) {
     await Supabase.initialize(url: url, anonKey: key);
-    runApp(const BerberimApp());
   }
+  runApp(const BerberimApp());
 }
 
 class BerberimApp extends StatelessWidget {
@@ -105,7 +104,7 @@ class ProfilePage extends StatefulWidget { const ProfilePage({super.key}); @over
 class _ProfilePageState extends State<ProfilePage>{
  final name=TextEditingController(),phone=TextEditingController(),shop=TextEditingController(),code=TextEditingController(); bool owner=false,busy=false; String message='';
  Future<void> save() async { setState(()=>busy=true); try {
- await sb.from('profiles').insert({'id':uid,'full_name':name.text.trim(),'phone':phone.text.trim()});
+ await sb.from('profiles').update({'full_name':name.text.trim(),'phone':phone.text.trim()}).eq('id',uid);
  if(owner){
  final b=await sb.from('businesses').insert({'owner_id':uid,'name':shop.text.trim(),'status':'pending'}).select().single();
  await sb.from('employees').insert({'business_id':b['id'],'user_id':uid,'display_name':name.text.trim()});
@@ -157,9 +156,9 @@ class _BarberPageState extends State<BarberPage>{
 
 class CustomerPage extends StatefulWidget { const CustomerPage({super.key}); @override State<CustomerPage> createState()=>_CustomerPageState(); }
 class _CustomerPageState extends State<CustomerPage>{
- String? businessId,employeeId,serviceId; DateTime day=DateTime.now().add(const Duration(days:1)); bool busy=false;
+ String? businessId,employeeId,serviceId; String selectedTime='10:00'; DateTime day=DateTime.now().add(const Duration(days:1)); bool busy=false;
  String date(DateTime d)=>'${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
- Future<void> book()async{if(businessId==null||employeeId==null||serviceId==null)return;setState(()=>busy=true);try{final local=DateTime(day.year,day.month,day.day,10);await sb.rpc('book_appointment',params:{'p_business_id':businessId,'p_employee_id':employeeId,'p_service_id':serviceId,'p_starts_at':local.toUtc().toIso8601String()});toast(context,'Randevun onaylandı');}catch(e){toast(context,err(e));}if(mounted)setState(()=>busy=false);}
+ Future<void> book()async{if(businessId==null||employeeId==null||serviceId==null)return;setState(()=>busy=true);try{final parts=selectedTime.split(':').map(int.parse).toList(); final local=DateTime(day.year,day.month,day.day,parts[0],parts[1]);await sb.rpc('book_appointment',params:{'p_business_id':businessId,'p_employee_id':employeeId,'p_service_id':serviceId,'p_starts_at':local.toUtc().toIso8601String()});toast(context,'Randevun onaylandı');}catch(e){toast(context,err(e));}if(mounted)setState(()=>busy=false);}
  @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('Berberim'),actions:[IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout))]),body:FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('business_memberships').select('business_id, businesses(id,name)').eq('customer_id',uid),builder:(c,m){if(!m.hasData)return const LoadingPage();final businesses=(m.data??[]).map((x)=>x['businesses']).whereType<Map<String,dynamic>>().toList();return ListView(padding:const EdgeInsets.all(16),children:[
  const Text('Randevu oluştur',style:TextStyle(fontSize:25,fontWeight:FontWeight.w800)),const SizedBox(height:12),
  if(businesses.isEmpty)const Text('Henüz bir işletmeye katılmadın. Profilinden işletme koduyla katılabilirsin.'),
@@ -167,7 +166,8 @@ class _CustomerPageState extends State<CustomerPage>{
  if(businessId!=null)FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('employees').select().eq('business_id',businessId!).eq('is_active',true),builder:(c,s)=>DropdownButtonFormField<String>(value:employeeId,decoration:const InputDecoration(labelText:'Berber seç'),items:(s.data??[]).map((e)=>DropdownMenuItem(value:e['id'] as String,child:Text(e['display_name']))).toList(),onChanged:(v)=>setState(()=>employeeId=v))),
  if(businessId!=null)FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('services').select().eq('business_id',businessId!).eq('is_active',true),builder:(c,s)=>DropdownButtonFormField<String>(value:serviceId,decoration:const InputDecoration(labelText:'Hizmet seç'),items:(s.data??[]).map((e)=>DropdownMenuItem(value:e['id'] as String,child:Text('${e['name']} • ${e['price']} TL / ${e['duration_minutes']} dk'))).toList(),onChanged:(v)=>setState(()=>serviceId=v))),
  OutlinedButton.icon(onPressed:()async{final d=await showDatePicker(context:c,initialDate:day,firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:90)));if(d!=null)setState(()=>day=d);},icon:const Icon(Icons.calendar_month),label:Text(date(day))),
- ElevatedButton(onPressed:busy?null:book,child:Text(busy?'İşleniyor…':'10:00 için randevu al')),
+ DropdownButtonFormField<String>(value:selectedTime,decoration:const InputDecoration(labelText:'Saat seç'),items:List.generate(22,(i){final mins=9*60+i*30;final t='${(mins~/60).toString().padLeft(2,'0')}:${(mins%60).toString().padLeft(2,'0')}';return DropdownMenuItem(value:t,child:Text(t));}),onChanged:(v)=>setState(()=>selectedTime=v??'10:00')),
+ ElevatedButton(onPressed:busy?null:book,child:Text(busy?'İşleniyor…':'Randevu al')),
  const SizedBox(height:20),const Text('Randevularım',style:TextStyle(fontSize:21,fontWeight:FontWeight.bold)),
  FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('appointments').select('*, businesses(name), services(name), employees(display_name)').eq('customer_id',uid).order('starts_at',ascending:false),builder:(c,s)=>Column(children:(s.data??[]).map((a)=>Card(child:ListTile(title:Text(a['services']?['name']??'Randevu'),subtitle:Text('${a['businesses']?['name']??''} • ${a['starts_at']} • ${a['status']}'),trailing:a['status']=='confirmed'?IconButton(icon:const Icon(Icons.cancel_outlined),onPressed:()async{await sb.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});setState((){});}):null))).toList()))
  ]);}));
