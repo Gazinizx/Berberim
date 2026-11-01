@@ -28,14 +28,16 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           manifest = Path("android/app/src/main/AndroidManifest.xml")
           if not manifest.exists():
               raise SystemExit(f"Android manifest missing: {manifest}")
           text = manifest.read_text()
           permission = '<uses-permission android:name="android.permission.INTERNET"/>'
           if "android.permission.INTERNET" not in text:
-              text = re.sub(r'(<application\b)', permission + '\n    \1', text, count=1)
+              insertion_point = text.find("<application")
+              if insertion_point < 0:
+                  raise SystemExit("AndroidManifest.xml has no <application> element")
+              text = text[:insertion_point] + permission + "\n    " + text[insertion_point:]
               manifest.write_text(text)
           if "android.permission.INTERNET" not in manifest.read_text():
               raise SystemExit("INTERNET permission was not added to the main manifest")
