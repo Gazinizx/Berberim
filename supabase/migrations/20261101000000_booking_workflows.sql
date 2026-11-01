@@ -46,7 +46,7 @@ end $$;
 
 create or replace function public.book_appointment(
   p_business_id uuid, p_employee_id uuid, p_service_id uuid, p_starts_at timestamptz, p_customer_note text default null
-) returns uuid language plpgsql security invoker set search_path = ''
+) returns uuid language plpgsql security definer set search_path = ''
 as $$
 declare
   v_duration integer;
@@ -80,7 +80,7 @@ exception when exclusion_violation then raise exception 'Bu saat dolu; lütfen b
 end $$;
 
 create or replace function public.cancel_appointment(p_appointment_id uuid)
-returns void language plpgsql security invoker set search_path = ''
+returns void language plpgsql security definer set search_path = ''
 as $$
 begin
   update public.appointments a set status='cancelled'
@@ -95,3 +95,14 @@ grant execute on function public.create_business(text,text) to authenticated;
 grant execute on function public.admin_review_business(uuid,text) to authenticated;
 grant execute on function public.book_appointment(uuid,uuid,uuid,timestamptz,text) to authenticated;
 grant execute on function public.cancel_appointment(uuid) to authenticated;
+
+-- Enable realtime for the app's live lists.
+do $$
+declare t text;
+begin
+  foreach t in array array['businesses','business_memberships','employees','services','appointments'] loop
+    if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename=t) then
+      execute format('alter publication supabase_realtime add table public.%I',t);
+    end if;
+  end loop;
+end $$;
