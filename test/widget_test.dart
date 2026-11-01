@@ -1,11 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:berberim/main.dart';
 
 void main() {
-  testWidgets('Berberim opens the role selection screen', (tester) async {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('Berberim opens the local dashboard', (tester) async {
     await tester.pumpWidget(const BerberimApp());
-    expect(find.text('Berberim'), findsOneWidget);
-    expect(find.text('Müşteri olarak devam et'), findsOneWidget);
-    expect(find.text('Berber paneli'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('Bugünkü randevular'), findsOneWidget);
+    expect(find.text('Ana Sayfa'), findsOneWidget);
   });
 }
