@@ -204,8 +204,8 @@ export const bookAppointment = onCall(async (request) => {
     if (collision) throw new HttpsError("already-exists", "Bu saat başka bir randevuyla çakışıyor.");
     for (const ref of lockRefs) tx.create(ref, {barberId, customerId: uid, appointmentId: appointmentRef.id, startAt: Timestamp.fromDate(start)});
     tx.create(appointmentRef, {
-      barberId, customerId: uid, serviceId, serviceName: service.name,
-      price: service.price, durationMinutes: minutes,
+      barberId, customerId: uid, customerName: user.name ?? "Müşteri", customerPhone: user.phone ?? "",
+      serviceId, serviceName: service.name, price: service.price, durationMinutes: minutes,
       startAt: Timestamp.fromDate(start), endAt: Timestamp.fromDate(end),
       status: "confirmed", createdAt: FieldValue.serverTimestamp(),
     });

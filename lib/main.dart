@@ -335,7 +335,7 @@ class _CustomerPageState extends State<CustomerPage> {
               final a = d.data();
               return Card(child: ListTile(
                 title: Text('${a['serviceName']} • ${a['status']}'),
-                subtitle: Text((a['startAt'] as Timestamp).toDate().toLocal().toString()),
+                subtitle: Text('${a['customerName'] ?? 'Müşteri'} • ${a['customerPhone'] ?? ''}\n${(a['startAt'] as Timestamp).toDate().toLocal()}'),
                 trailing: a['status'] == 'confirmed' ? IconButton(icon: const Icon(Icons.cancel_outlined), onPressed: () async {
                   try { await functions.httpsCallable('cancelAppointment').call({'appointmentId': d.id}); }
                   catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'))); }
@@ -365,6 +365,39 @@ class _BarberPageState extends State<BarberPage> {
       opening.text = (hours['opening'] ?? '09:00').toString();
       closing.text = (hours['closing'] ?? '20:00').toString();
     }
+  }
+  Future<void> editService(DocumentSnapshot<Map<String, dynamic>> doc) async {
+    final data = doc.data();
+    if (data == null) return;
+    final name = TextEditingController(text: (data['name'] ?? '').toString());
+    final price = TextEditingController(text: (data['price'] ?? 0).toString());
+    final duration = TextEditingController(text: (data['durationMinutes'] ?? 30).toString());
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Hizmeti düzenle'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: name, decoration: const InputDecoration(labelText: 'Hizmet adı')),
+        const SizedBox(height: 8),
+        TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Ücret (TL)')),
+        const SizedBox(height: 8),
+        TextField(controller: duration, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Süre (dk)')),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Kaydet')),
+      ],
+    ));
+    final p = int.tryParse(price.text), mins = int.tryParse(duration.text);
+    if (ok == true) {
+      if (name.text.trim().isEmpty || p == null || p < 0 || mins == null || mins < 5 || mins > 360) {
+        if (mounted) setState(() => notice = 'Hizmet adı, ücret veya süre geçersiz.');
+      } else {
+        try {
+          await doc.reference.update({'name': name.text.trim(), 'price': p, 'durationMinutes': mins});
+          if (mounted) setState(() => notice = 'Hizmet güncellendi.');
+        } catch (e) { if (mounted) setState(() => notice = 'Güncelleme başarısız: $e'); }
+      }
+    }
+    name.dispose(); price.dispose(); duration.dispose();
   }
   Future<void> addService() async {
     final name = serviceName.text.trim(), p = int.tryParse(price.text), mins = int.tryParse(duration.text);
@@ -419,7 +452,10 @@ class _BarberPageState extends State<BarberPage> {
           if (!snap.hasData) return const LinearProgressIndicator();
           return Column(children: snap.data!.docs.map((d) => Card(child: ListTile(
             title: Text(d.data()['name'] ?? ''), subtitle: Text('${d.data()['price']} TL • ${d.data()['durationMinutes']} dk'),
-            trailing: Switch(value: d.data()['isActive'] == true, onChanged: (v) => d.reference.update({'isActive': v})),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => editService(d)),
+              Switch(value: d.data()['isActive'] == true, onChanged: (v) => d.reference.update({'isActive': v})),
+            ]),
           ))).toList());
         },
       ),
