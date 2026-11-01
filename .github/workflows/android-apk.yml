@@ -35,7 +35,7 @@ jobs:
           text = manifest.read_text()
           permission = '<uses-permission android:name="android.permission.INTERNET"/>'
           if "android.permission.INTERNET" not in text:
-              text = re.sub(r'(<application\\b)', permission + '\\n    \\1', text, count=1)
+              text = re.sub(r'(<application\b)', permission + '\n    \1', text, count=1)
               manifest.write_text(text)
           if "android.permission.INTERNET" not in manifest.read_text():
               raise SystemExit("INTERNET permission was not added to the main manifest")
@@ -48,10 +48,7 @@ jobs:
       - name: Run tests
         run: flutter test
       - name: Build release APK
-        run: |
-          flutter build apk --release \\
-            --dart-define=SUPABASE_URL=https://tzwlbwhokvnjekwwpnsr.supabase.co \\
-            --dart-define=SUPABASE_ANON_KEY=sb_publishable_dkvrMB41cXEeH2dBdKAwxA_MFWTZyW0
+        run: flutter build apk --release --dart-define=SUPABASE_URL=https://tzwlbwhokvnjekwwpnsr.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_dkvrMB41cXEeH2dBdKAwxA_MFWTZyW0
       - uses: actions/upload-artifact@v4
         with:
           name: berberim-supabase-release-apk
