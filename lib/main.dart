@@ -124,7 +124,8 @@ class _ProfilePageState extends State<ProfilePage>{
 
 class PendingPage extends StatelessWidget { const PendingPage({super.key,required this.business}); final Map<String,dynamic> business;
  @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(actions:[IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout))]),body:Center(child:Padding(padding:const EdgeInsets.all(24),child:Column(mainAxisSize:MainAxisSize.min,children:[
- const Icon(Icons.hourglass_top,color:gold,size:56),const SizedBox(height:16),Text(business['status']=='rejected'?'Başvuru reddedildi':'Başvurun inceleniyor',style:const TextStyle(fontSize:24,fontWeight:FontWeight.bold)),const SizedBox(height:10),Text(business['name']??''),const Text('Yönetici onayından sonra işletmen aktif olacaktır.')
+ const Icon(Icons.hourglass_top,color:gold,size:56),const SizedBox(height:16),Text(business['status']=='rejected'?'Başvuru reddedildi':'Başvurun inceleniyor',style:const TextStyle(fontSize:24,fontWeight:FontWeight.bold)),const SizedBox(height:10),Text(business['name']??''),const Text('Yönetici onayından sonra işletmen aktif olacaktır.'),
+ const SizedBox(height:18),ElevatedButton(onPressed:()=>Navigator.of(c).pushReplacement(MaterialPageRoute(builder:(_)=>const AuthGate())),child:const Text('Durumu yenile'))
  ]))));
 }
 
