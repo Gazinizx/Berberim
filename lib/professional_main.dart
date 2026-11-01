@@ -293,7 +293,7 @@ class _CustomerPageState extends State<CustomerPage>{
    if(times.isEmpty){if(mounted)snack(context,'Bu tarihte uygun saat yok.');return;}
    final chosen=await showDialog<DateTime>(context:context,builder:(dialog)=>AlertDialog(
     title:Text('Yeni saat • ${dateText(d)}'),
-    content:SingleChildScrollView(child:Wrap(spacing:8,runSpacing:8,children:times.map((t)=>ActionChip(label:Text(timeText(t)),onPressed:()=>Navigator.pop(dialog,t)).toList())),
+    content:SingleChildScrollView(child:Wrap(spacing:8,runSpacing:8,children:times.map((t)=>ActionChip(label:Text(timeText(t)),onPressed:()=>Navigator.pop(dialog,t))).toList())),
     actions:[TextButton(onPressed:()=>Navigator.pop(dialog),child:const Text('Vazgeç'))],
    ));
    if(chosen==null||!mounted)return;
