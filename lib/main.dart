@@ -73,7 +73,7 @@ class _BarberPageState extends State<BarberPage> {
       final code='BRB${u.$id.substring(0,6).toUpperCase()}';
       final d=(await db.createDocument(databaseId:AppConfig.databaseId,collectionId:AppConfig.barbers,
         documentId:ID.unique(),data:{'userId':u.$id,'name':name.text.trim(),'phone':phone.text.trim(),
-        'address':address.text.trim(),'inviteCode':code,'isActive':true});
+        'address':address.text.trim(),'inviteCode':code,'isActive':true}));
       barberId=d.$id; inviteCode=code;
       await db.createDocument(databaseId:AppConfig.databaseId,collectionId:AppConfig.services,documentId:ID.unique(),
         data:{'barberId':d.$id,'name':service.text.trim(),'price':double.tryParse(price.text)??0,'durationMinutes':30,'isActive':true});
