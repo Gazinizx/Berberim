@@ -24,6 +24,49 @@ jobs:
       - name: Prepare Android platform
         run: |
           if [ ! -d android ]; then flutter create --platforms=android --project-name=berberim .; fi
+      - name: Apply Berberim launcher icon
+        run: |
+          mkdir -p android/app/src/main/res/drawable android/app/src/main/res/mipmap-anydpi android/app/src/main/res/mipmap-anydpi-v26 android/app/src/main/res/values
+          cat > android/app/src/main/res/drawable/ic_launcher_foreground.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#D6A64B" android:pathData="M54,8 A46,46 0,1 0,54 100 A46,46 0,1 0,54 8 M54,17 A37,37 0,1 1,54 91 A37,37 0,1 1,54 17" />
+              <path android:fillColor="#F7F4ED" android:pathData="M35,31 C29,31 25,36 25,42 C25,48 30,53 36,53 C42,53 47,48 47,42 C47,36 42,31 35,31 M35,37 C38,37 41,39 41,42 C41,45 38,47 35,47 C32,47 31,45 31,42 C31,39 32,37 35,37 M73,31 C67,31 62,36 62,42 C62,48 67,53 73,53 C79,53 84,48 84,42 C84,36 79,31 73,31 M73,37 C76,37 78,39 78,42 C78,45 76,47 73,47 C70,47 68,45 68,42 C68,39 70,37 73,37" />
+              <path android:fillColor="#F7F4ED" android:pathData="M42,47 L76,78 L71,84 L37,53 Z M66,47 L32,78 L37,84 L71,53 Z" />
+              <path android:fillColor="#D6A64B" android:pathData="M51,55 L57,55 L57,79 L51,79 Z" />
+          </vector>
+          EOF
+          cat > android/app/src/main/res/mipmap-anydpi/ic_launcher.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="48dp" android:height="48dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#101114" android:pathData="M0,0h108v108h-108z" />
+              <path android:fillColor="#D6A64B" android:pathData="M54,8 A46,46 0,1 0,54 100 A46,46 0,1 0,54 8 M54,17 A37,37 0,1 1,54 91 A37,37 0,1 1,54 17" />
+              <path android:fillColor="#F7F4ED" android:pathData="M35,31 C29,31 25,36 25,42 C25,48 30,53 36,53 C42,53 47,48 47,42 C47,36 42,31 35,31 M35,37 C38,37 41,39 41,42 C41,45 38,47 35,47 C32,47 31,45 31,42 C31,39 32,37 35,37 M73,31 C67,31 62,36 62,42 C62,48 67,53 73,53 C79,53 84,48 84,42 C84,36 79,31 73,31 M73,37 C76,37 78,39 78,42 C78,45 76,47 73,47 C70,47 68,45 68,42 C68,39 70,37 73,37" />
+              <path android:fillColor="#F7F4ED" android:pathData="M42,47 L76,78 L71,84 L37,53 Z M66,47 L32,78 L37,84 L71,53 Z" />
+          </vector>
+          EOF
+          cat > android/app/src/main/res/values/ic_launcher_background.xml <<'EOF'
+          <resources><color name="ic_launcher_background">#101114</color></resources>
+          EOF
+          cat > android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_launcher_background" />
+              <foreground android:drawable="@drawable/ic_launcher_foreground" />
+          </adaptive-icon>
+          EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          s, count = re.subn(r'<application\\b([^>]*)>', lambda m: '<application' + re.sub(r'\\s+android:(?:roundIcon|icon)="[^"]*"', '', m.group(1)) + ' android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher">', s, count=1)
+          if count != 1:
+              raise SystemExit("Could not locate the application element in AndroidManifest.xml")
+          p.write_text(s)
+          print("Berberim launcher icon installed.")
+          PY
       - name: Install dependencies
         run: flutter pub get
       - name: Check backend TypeScript
