@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const gold = Color(0xFFFF7A1A);
-const ink = Color(0xFF0B0B0E);
-const panel = Color(0xFF19191F);
+const gold = Color(0xFFD6A64B);
+const goldLight = Color(0xFFF0D18A);
+const ink = Color(0xFF090A0C);
+const panel = Color(0xFF14161A);
+const ivory = Color(0xFFF5F2EB);
+const muted = Color(0xFF9298A3);
+const border = Color(0xFF2B2F36);
 final sb = Supabase.instance.client;
 String get uid => sb.auth.currentUser!.id;
 String err(Object e) => e.toString().replaceFirst('Exception: ', '').replaceFirst('PostgrestException(message: ', '');
@@ -20,107 +24,149 @@ Future<void> main() async {
 
 class BerberimApp extends StatelessWidget {
   const BerberimApp({super.key});
-  @override Widget build(BuildContext context) => MaterialApp(
-    title: 'Berberim', debugShowCheckedModeBanner: false,
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    title: 'Berberim',
+    debugShowCheckedModeBanner: false,
     theme: ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: const Color(0xFF101116),
-      canvasColor: const Color(0xFF101116),
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: gold,
-        brightness: Brightness.dark,
-        surface: const Color(0xFF191B22),
-      ).copyWith(
+      scaffoldBackgroundColor: ink,
+      canvasColor: ink,
+      dividerColor: border,
+      colorScheme: const ColorScheme.dark(
         primary: gold,
-        onPrimary: const Color(0xFF17100B),
-        secondary: const Color(0xFFFFB36B),
-        surface: const Color(0xFF191B22),
-        onSurface: const Color(0xFFF5F5F7),
-        outline: const Color(0xFF343741),
+        onPrimary: Color(0xFF17130B),
+        secondary: goldLight,
+        onSecondary: Color(0xFF17130B),
+        surface: panel,
+        onSurface: ivory,
+        error: Color(0xFFFF6B70),
+        onError: Color(0xFF25090B),
+      ),
+      textTheme: ThemeData.dark(useMaterial3: true).textTheme.apply(
+        bodyColor: ivory,
+        displayColor: ivory,
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF101116),
-        foregroundColor: Color(0xFFF7F7F8),
+        backgroundColor: ink,
+        foregroundColor: ivory,
         centerTitle: false,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleTextStyle: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: Color(0xFFF7F7F8)),
-        iconTheme: IconThemeData(color: Color(0xFFF7F7F8), size: 23),
+        titleTextStyle: TextStyle(
+          fontSize: 21,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.45,
+          color: ivory,
+        ),
+        iconTheme: IconThemeData(color: ivory, size: 23),
       ),
       cardTheme: CardThemeData(
-        color: const Color(0xFF1A1C23),
+        color: panel,
         elevation: 0,
         margin: const EdgeInsets.symmetric(vertical: 8),
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(22),
-          side: const BorderSide(color: Color(0xFF2B2E38), width: 1),
+          side: const BorderSide(color: border, width: 1),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFF1A1C23),
+        fillColor: panel,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-        labelStyle: const TextStyle(color: Color(0xFF9B9EAA), fontWeight: FontWeight.w500),
-        hintStyle: const TextStyle(color: Color(0xFF777B87)),
+        labelStyle: const TextStyle(color: muted, fontWeight: FontWeight.w500),
+        hintStyle: const TextStyle(color: muted),
         prefixIconColor: gold,
-        suffixIconColor: const Color(0xFF9B9EAA),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(17), borderSide: const BorderSide(color: Color(0xFF30333D))),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(17), borderSide: const BorderSide(color: gold, width: 1.6)),
-        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(17), borderSide: const BorderSide(color: Colors.redAccent)),
-        focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(17), borderSide: const BorderSide(color: Colors.redAccent, width: 1.6)),
+        suffixIconColor: muted,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(17),
+          borderSide: const BorderSide(color: border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(17),
+          borderSide: const BorderSide(color: gold, width: 1.6),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(17),
+          borderSide: const BorderSide(color: Color(0xFFFF6B70)),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(17),
+          borderSide: const BorderSide(color: Color(0xFFFF6B70), width: 1.6),
+        ),
       ),
-      elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(
-        backgroundColor: gold, foregroundColor: const Color(0xFF17100B),
-        minimumSize: const Size.fromHeight(54), elevation: 0,
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
-      )),
-      outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(
-        foregroundColor: const Color(0xFFF5F5F7), minimumSize: const Size.fromHeight(50),
-        side: const BorderSide(color: Color(0xFF3A3D48)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
-      )),
-      textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(
-        foregroundColor: const Color(0xFFFFA45C),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      )),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: gold,
+          foregroundColor: const Color(0xFF17130B),
+          minimumSize: const Size.fromHeight(54),
+          elevation: 0,
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: ivory,
+          minimumSize: const Size.fromHeight(50),
+          side: const BorderSide(color: border),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: goldLight,
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: const Color(0xFF191B22),
-        indicatorColor: const Color(0x33FF7A1A),
+        backgroundColor: panel,
+        indicatorColor: const Color(0x33D6A64B),
         elevation: 0,
         height: 72,
-        labelTextStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+        labelTextStyle: const WidgetStatePropertyAll(
+          TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        ),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: Color(0xFF1A1C23),
-        modalBackgroundColor: Color(0xFF1A1C23),
+        backgroundColor: panel,
+        modalBackgroundColor: panel,
         showDragHandle: true,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: const Color(0xFF1A1C23),
+        backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
-      dividerTheme: const DividerThemeData(color: Color(0xFF2B2E38), thickness: 1, space: 1),
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: panel,
+        headerBackgroundColor: gold,
+        headerForegroundColor: const Color(0xFF17130B),
+        todayForegroundColor: const WidgetStatePropertyAll(gold),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+      dividerTheme: const DividerThemeData(color: border, thickness: 1, space: 1),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: const Color(0xFF292C35),
-        contentTextStyle: const TextStyle(color: Color(0xFFF5F5F7)),
+        backgroundColor: const Color(0xFF24272D),
+        contentTextStyle: const TextStyle(color: ivory),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: gold),
-      iconTheme: const IconThemeData(color: Color(0xFFE6E7EB), size: 22),
+      iconTheme: const IconThemeData(color: ivory, size: 22),
       listTileTheme: const ListTileThemeData(
         iconColor: gold,
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         minLeadingWidth: 28,
       ),
     ),
-    home: const ConfigGate());
+    home: const ConfigGate(),
+  );
 }
 
 class ConfigGate extends StatelessWidget {
