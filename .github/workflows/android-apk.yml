@@ -1,13 +1,10 @@
 name: Build Android APK
-
 on:
   workflow_dispatch:
   push:
-    branches: [main, clean-rebuild]
-
+    branches: [main, clean-rebuild, supabase-migration]
 permissions:
   contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,30 +20,13 @@ jobs:
           cache: true
       - name: Prepare Android platform
         run: |
-          if [ ! -d android ]; then flutter create --platforms=android --project-name=berberim .; fi
+          if [ ! -d android ]; then flutter create --platforms=android --org com.gazinizx --project-name=berberim .; fi
       - name: Install dependencies
         run: flutter pub get
-      - name: Check backend TypeScript
-        working-directory: functions
-        run: |
-          npm install
-          npm run build
       - name: Analyze Dart
-        run: flutter analyze --no-pub
+        run: flutter analyze
       - name: Build release APK
-        env:
-          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
-        run: |
-          flutter build apk --release \
-            --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" \
-            --dart-define=FIREBASE_APP_ID="$FIREBASE_APP_ID" \
-            --dart-define=FIREBASE_MESSAGING_SENDER_ID="$FIREBASE_MESSAGING_SENDER_ID" \
-            --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID" \
-            --dart-define=FIREBASE_STORAGE_BUCKET="$FIREBASE_STORAGE_BUCKET"
+        run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
           name: berberim-release-apk
