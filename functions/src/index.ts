@@ -1,5 +1,5 @@
 import {initializeApp} from "firebase-admin/app";
-import {FieldValue, Timestamp, getFirestore} from "firebase-admin/firestore";
+import {DocumentReference, DocumentSnapshot, FieldValue, Timestamp, getFirestore} from "firebase-admin/firestore";
 import {getMessaging} from "firebase-admin/messaging";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {defineString} from "firebase-functions/params";
@@ -184,14 +184,14 @@ export const bookAppointment = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "Randevu işletmenin çalışma saatleri dışında.");
   }
   const bucketMs = 30 * 60_000;
-  const lockRefs = [];
+  const lockRefs: DocumentReference[] = [];
   for (let t = start.getTime(); t < end.getTime(); t += bucketMs) {
     const bucket = Math.floor(t / bucketMs) * bucketMs;
     lockRefs.push(db.doc(`slotLocks/${barberId}_${bucket}`));
   }
   const appointmentRef = db.collection("appointments").doc();
   await db.runTransaction(async tx => {
-    const locks = [];
+    const locks: DocumentSnapshot[] = [];
     for (const ref of lockRefs) locks.push(await tx.get(ref));
     const existing = await tx.get(db.collection("appointments").where("barberId", "==", barberId));
     if (locks.some(lock => lock.exists)) throw new HttpsError("already-exists", "Bu saat az önce doldu. Başka bir saat seç.");
@@ -233,7 +233,7 @@ export const cancelAppointment = onCall(async (request) => {
     const bucketMs = 30 * 60_000;
     const startMs = (a.startAt as Timestamp).toMillis();
     const endMs = (a.endAt as Timestamp).toMillis();
-    const lockRefs = [];
+    const lockRefs: DocumentReference[] = [];
     for (let t = startMs; t < endMs; t += bucketMs) {
       const bucket = Math.floor(t / bucketMs) * bucketMs;
       lockRefs.push(db.doc(`slotLocks/${a.barberId}_${bucket}`));
