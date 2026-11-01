@@ -1,10 +1,13 @@
 name: Build Android APK
+
 on:
   workflow_dispatch:
   push:
-    branches: [main, clean-rebuild, supabase-migration]
+    branches: [supabase-migration]
+
 permissions:
   contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,15 +23,18 @@ jobs:
           cache: true
       - name: Prepare Android platform
         run: |
-          if [ ! -d android ]; then flutter create --platforms=android --org com.gazinizx --project-name=berberim .; fi
+          if [ ! -d android ]; then flutter create --platforms=android --org com.gazinizx --project-name berberim .; fi
       - name: Install dependencies
         run: flutter pub get
       - name: Analyze Dart
-        run: flutter analyze
+        run: flutter analyze --no-pub
       - name: Build release APK
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL=https://tzwlbwhokvnjekwwpnsr.supabase.co \
+            --dart-define=SUPABASE_ANON_KEY=sb_publishable_dkvrMB41cXEeH2dBdKAwxA_MFWTZyW0
       - uses: actions/upload-artifact@v4
         with:
-          name: berberim-release-apk
+          name: berberim-supabase-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
