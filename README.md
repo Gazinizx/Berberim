@@ -4,7 +4,7 @@ Berberim is a Flutter appointment app for barber businesses, their staff, and cu
 
 ## App experience
 
-- **Customers:** join one barber business with a code, book by service, employee, date and live availability, view appointment history, cancel eligible appointments, edit their profile, and leave their business to enter a new code.
+- **Customers:** join one barber business with a code, book by service, employee, date and live availability, view appointment history, cancel or reschedule eligible appointments, rate completed appointments, rebook past services, edit their profile, and leave their business to enter a new code.
 - **Business owners:** daily appointment overview, employee filter, invite-code based team onboarding, employee activation, services and prices, business hours and breaks.
 - **Workers:** separate role-based panel, own appointments and customer details, status updates, personal working hours, breaks and time off.
 - **Scheduling:** 30-minute candidate slots filtered by service duration, business hours, employee hours, breaks, leave and existing appointments. The database prevents overlapping active appointments for the same employee.
