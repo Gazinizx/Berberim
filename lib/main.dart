@@ -34,17 +34,7 @@ class BerberimApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Berberim', debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      useMaterial3: true, brightness: Brightness.dark, scaffoldBackgroundColor: ink,
-      colorScheme: ColorScheme.fromSeed(seedColor: gold, brightness: Brightness.dark),
-      cardTheme: const CardThemeData(color: panel),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true, fillColor: panel,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(
-        backgroundColor: gold, foregroundColor: ink, minimumSize: const Size.fromHeight(48))),
-    ),
+    theme: BerberimTheme.dark,
     home: firebaseReady ? const AuthGate() : SetupPage(error: initError),
   );
 }
