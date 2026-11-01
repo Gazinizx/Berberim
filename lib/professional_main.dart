@@ -85,11 +85,11 @@ class _LoginPageState extends State<LoginPage>{
     if(type=='worker'&&invite.text.trim().isEmpty)throw Exception('Çalışan davet kodunu gir.');
     final r=await db.auth.signUp(email:email.text.trim(),password:password.text,data:{'account_type':type=='business_owner'?'business_owner':'customer'});
     if(r.session==null){message='Doğrulama e-postası gönderildi. E-postanı doğrula; sonra giriş yapıp davet kodunu tekrar gir.';}
-    else if(type=='worker'){await db.rpc('claim_employee_invite',params:{'p_code':invite.text.trim().toUpperCase()});}
+    else if(type=='worker'){await db.rpc('claim_employee_invite',params:{'p_code':invite.text.trim().toUpperCase()});await db.auth.refreshSession();}
     else{message='Hesabın oluşturuldu.';}
    }else{
     await db.auth.signInWithPassword(email:email.text.trim(),password:password.text);
-    if(invite.text.trim().isNotEmpty)await db.rpc('claim_employee_invite',params:{'p_code':invite.text.trim().toUpperCase()});
+    if(invite.text.trim().isNotEmpty){await db.rpc('claim_employee_invite',params:{'p_code':invite.text.trim().toUpperCase()});await db.auth.refreshSession();}
    }
   }catch(e){message=errorText(e);}
   if(mounted)setState(()=>busy=false);
@@ -259,8 +259,36 @@ class _CustomerPageState extends State<CustomerPage>{
  ]))]);
  }
  Widget appointments()=>ListView(padding:const EdgeInsets.all(16),children:[titleBlock('Randevularım','Yaklaşan ve geçmiş randevuların'),FutureBuilder<List<Map<String,dynamic>>>(future:db.from('appointments').select('*,businesses(name),services(name,price),employees(display_name)').eq('customer_id',userId).order('starts_at',ascending:false).limit(100),builder:(c,s){if(s.connectionState!=ConnectionState.done)return const Loading();if(s.hasError)return Text(errorText(s.error!));final rows=s.data??[];if(rows.isEmpty)return cardBox(const Text('Henüz randevun bulunmuyor.',style:TextStyle(color:muted)));return Column(children:rows.map((a){final service=(a['services'] as Map?)??{};final business=(a['businesses'] as Map?)??{};final worker=(a['employees'] as Map?)??{};final start=localDate(a['starts_at']);return cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text(service['name']??'Randevu',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:16))),statusPill(a['status'])]),const SizedBox(height:8),Text(business['name']??'',style:const TextStyle(color:gold,fontWeight:FontWeight.w700)),const SizedBox(height:5),tinyInfo(Icons.calendar_month,'${dateText(start)} • ${timeText(start)}'),const SizedBox(height:4),tinyInfo(Icons.person_outline,worker['display_name']??'Çalışan'),if(a['status']=='confirmed')Align(alignment:Alignment.centerRight,child:TextButton.icon(onPressed:()async{try{await db.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});setState((){});}catch(e){snack(context,errorText(e));}},icon:const Icon(Icons.cancel_outlined),label:const Text('Randevuyu iptal et')))]));}).toList());})]);
- Widget profile()=>FutureBuilder<Map<String,dynamic>?>(future:db.from('profiles').select().eq('id',userId).maybeSingle(),builder:(c,s){if(s.connectionState!=ConnectionState.done)return const Loading();final p=s.data??{};if(fullName.text.isEmpty)fullName.text=p['full_name']??'';if(phone.text.isEmpty)phone.text=p['phone']??'';return ListView(padding:const EdgeInsets.all(16),children:[titleBlock('Profilim','Hesap bilgilerin ve berber bağlantın'),cardBox(Column(children:[const CircleAvatar(radius:28,backgroundColor:panel2,child:Icon(Icons.person_outline,color:gold,size:28)),const SizedBox(height:12),TextField(controller:fullName,decoration:const InputDecoration(labelText:'Ad soyad')),const SizedBox(height:10),TextField(controller:phone,decoration:const InputDecoration(labelText:'Telefon')),const SizedBox(height:12),ElevatedButton(onPressed:()async{try{await db.from('profiles').update({'full_name':fullName.text.trim(),'phone':phone.text.trim()}).eq('id',userId);snack(context,'Profilin güncellendi');}catch(e){snack(context,errorText(e));}},child:const Text('Bilgilerimi kaydet'))])),cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('İşletme bağlantısı',style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:5),const Text('Berberinden ayrılırsan yeni işletme kodu girebilirsin. Geçmiş randevuların korunur.',style:TextStyle(color:muted,fontSize:12)),const SizedBox(height:10),OutlinedButton.icon(onPressed:leave,icon:const Icon(Icons.link_off),label:const Text('Berberimden ayrıl'))])),OutlinedButton.icon(onPressed:()=>db.auth.signOut(),icon:const Icon(Icons.logout),label:const Text('Çıkış yap'))]);});
- @override Widget build(BuildContext c)=>FutureBuilder<List<Map<String,dynamic>>>(future:membership(),builder:(c,m){if(m.connectionState!=ConnectionState.done)return const Loading();if(m.hasError)return Fail(errorText(m.error!));final rows=m.data??[];final b=rows.isEmpty?null:rows.first['businesses'] as Map<String,dynamic>?;final pages=[home(b),appointments(),profile()];return Scaffold(appBar:AppBar(title:const Text('Berberim'),actions:[notifications(c),IconButton(onPressed:()=>setState((){}),icon:const Icon(Icons.refresh))]),body:pages[tab],bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const [NavigationDestination(icon:Icon(Icons.home_outlined),label:'Ana Sayfa'),NavigationDestination(icon:Icon(Icons.calendar_month_outlined),label:'Randevularım'),NavigationDestination(icon:Icon(Icons.person_outline),label:'Profilim')]));});
+ Widget profile(bool connected)=>FutureBuilder<Map<String,dynamic>?>(future:db.from('profiles').select().eq('id',userId).maybeSingle(),builder:(c,s){
+  if(s.connectionState!=ConnectionState.done)return const Loading();
+  final p=s.data??{};
+  if(fullName.text.isEmpty)fullName.text=p['full_name']??'';
+  if(phone.text.isEmpty)phone.text=p['phone']??'';
+  return ListView(padding:const EdgeInsets.all(16),children:[
+   titleBlock('Profilim','Hesap bilgilerin ve berber bağlantın'),
+   cardBox(Column(children:[
+    const CircleAvatar(radius:28,backgroundColor:panel2,child:Icon(Icons.person_outline,color:gold,size:28)),
+    const SizedBox(height:12),
+    TextField(controller:fullName,decoration:const InputDecoration(labelText:'Ad soyad')),
+    const SizedBox(height:10),
+    TextField(controller:phone,decoration:const InputDecoration(labelText:'Telefon')),
+    const SizedBox(height:12),
+    ElevatedButton(onPressed:()async{
+     try { await db.from('profiles').update({'full_name':fullName.text.trim(),'phone':phone.text.trim()}).eq('id',userId); if(mounted)snack(context,'Profilin güncellendi'); }
+     catch(e) { if(mounted)snack(context,errorText(e)); }
+    },child:const Text('Bilgilerimi kaydet')),
+   ])),
+   if(connected)cardBox(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    const Text('İşletme bağlantısı',style:TextStyle(fontWeight:FontWeight.w800)),
+    const SizedBox(height:5),
+    const Text('Berberinden ayrılırsan yeni işletme kodu girebilirsin. Geçmiş randevuların korunur.',style:TextStyle(color:muted,fontSize:12)),
+    const SizedBox(height:10),
+    OutlinedButton.icon(onPressed:leave,icon:const Icon(Icons.link_off),label:const Text('Berberimden ayrıl')),
+   ])),
+   OutlinedButton.icon(onPressed:()=>db.auth.signOut(),icon:const Icon(Icons.logout),label:const Text('Çıkış yap')),
+  ]);
+ });
+ @override Widget build(BuildContext c)=>FutureBuilder<List<Map<String,dynamic>>>(future:membership(),builder:(c,m){if(m.connectionState!=ConnectionState.done)return const Loading();if(m.hasError)return Fail(errorText(m.error!));final rows=m.data??[];final b=rows.isEmpty?null:rows.first['businesses'] as Map<String,dynamic>?;final pages=[home(b),appointments(),profile(b!=null)];return Scaffold(appBar:AppBar(title:const Text('Berberim'),actions:[notifications(c),IconButton(onPressed:()=>setState((){}),icon:const Icon(Icons.refresh))]),body:pages[tab],bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const [NavigationDestination(icon:Icon(Icons.home_outlined),label:'Ana Sayfa'),NavigationDestination(icon:Icon(Icons.calendar_month_outlined),label:'Randevularım'),NavigationDestination(icon:Icon(Icons.person_outline),label:'Profilim')]));});
 }
 
 class AdminPage extends StatefulWidget{const AdminPage({super.key});@override State<AdminPage> createState()=>_AdminPageState();}
