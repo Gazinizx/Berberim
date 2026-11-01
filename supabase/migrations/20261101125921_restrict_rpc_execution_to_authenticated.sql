@@ -1,0 +1,12 @@
+revoke all on function public.admin_set_user_blocked(uuid,boolean) from public, anon;
+grant execute on function public.admin_set_user_blocked(uuid,boolean) to authenticated;
+revoke all on function public.cancel_appointment(uuid) from public, anon;
+grant execute on function public.cancel_appointment(uuid) to authenticated;
+revoke all on function public.join_business_by_code(text) from public, anon;
+grant execute on function public.join_business_by_code(text) to authenticated;
+revoke all on function public.review_business(uuid,text) from public, anon;
+grant execute on function public.review_business(uuid,text) to authenticated;
+revoke all on function public.create_business_application(text,text) from public, anon;
+grant execute on function public.create_business_application(text,text) to authenticated;
+revoke all on function public.create_business(text,text) from public, anon;
+grant execute on function public.create_business(text,text) to authenticated;
