@@ -137,6 +137,18 @@ export const reviewBarberApplication = onCall(async (request) => {
   return {ok: true, status: result.status, ...(result.status === "approved" ? {barberCode: result.barberCode} : {})};
 });
 
+export const updateBusinessHours = onCall(async (request) => {
+  const uid = requireAuth(request);
+  const user = await profile(uid);
+  if (user.role !== "barber" || user.status !== "approved") throw new HttpsError("permission-denied", "Onaylı berber hesabı gerekli.");
+  const opening = String(request.data?.opening ?? "");
+  const closing = String(request.data?.closing ?? "");
+  const valid = (v: string) => /^([01]\\d|2[0-3]):[0-5]\\d$/.test(v);
+  if (!valid(opening) || !valid(closing) || opening >= closing) throw new HttpsError("invalid-argument", "Çalışma saatlerini SS:DD biçiminde gir; kapanış açılıştan sonra olmalı.");
+  await db.doc(`users/${uid}`).update({workingHours: {opening, closing}});
+  return {ok: true};
+});
+
 export const bookAppointment = onCall(async (request) => {
   const uid = requireAuth(request);
   const user = await profile(uid);
@@ -144,15 +156,18 @@ export const bookAppointment = onCall(async (request) => {
   const date = String(request.data?.date ?? "");
   const time = String(request.data?.time ?? "");
   const serviceId = String(request.data?.serviceId ?? "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) || !serviceId) {
+  const startAtMillis = Number(request.data?.startAtMillis);
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time) ||
+      !serviceId || !Number.isFinite(startAtMillis)) {
     throw new HttpsError("invalid-argument", "Tarih, saat veya hizmet geçersiz.");
   }
-  const [year, month, day] = date.split("-").map(Number);
-  const [hour, minute] = time.split(":").map(Number);
-  const start = new Date(year, month - 1, day, hour, minute);
+  const start = new Date(startAtMillis);
+  const localStart = istanbulParts(start);
+  if (localStart.date !== date || localStart.time !== time) {
+    throw new HttpsError("invalid-argument", "Tarih ve saat birbiriyle uyuşmuyor.");
+  }
   if (start.getTime() < Date.now() + 60_000) throw new HttpsError("invalid-argument", "Geçmiş bir saate randevu alınamaz.");
-  const serviceRef = db.doc(`services/${serviceId}`);
-  const serviceSnap = await serviceRef.get();
+  const serviceSnap = await db.doc(`services/${serviceId}`).get();
   if (!serviceSnap.exists) throw new HttpsError("not-found", "Hizmet bulunamadı.");
   const service = serviceSnap.data()!;
   const barberId = String(user.barberId);
@@ -160,13 +175,25 @@ export const bookAppointment = onCall(async (request) => {
   const minutes = Number(service.durationMinutes);
   if (!Number.isInteger(minutes) || minutes < 5 || minutes > 360) throw new HttpsError("failed-precondition", "Hizmet süresi hatalı.");
   const end = new Date(start.getTime() + minutes * 60_000);
-  const lockId = `${barberId}_${start.getTime()}`;
-  const lockRef = db.doc(`slotLocks/${lockId}`);
+  const barberSnap = await db.doc(`users/${barberId}`).get();
+  const hours = barberSnap.data()?.workingHours ?? {opening: "09:00", closing: "20:00"};
+  const startClock = istanbulParts(start).time;
+  const endClock = istanbulParts(end).time;
+  if (endClock < startClock || startClock < hours.opening || endClock > hours.closing) {
+    throw new HttpsError("failed-precondition", "Randevu işletmenin çalışma saatleri dışında.");
+  }
+  const bucketMs = 30 * 60_000;
+  const lockRefs = [];
+  for (let t = start.getTime(); t < end.getTime(); t += bucketMs) {
+    const bucket = Math.floor(t / bucketMs) * bucketMs;
+    lockRefs.push(db.doc(`slotLocks/${barberId}_${bucket}`));
+  }
   const appointmentRef = db.collection("appointments").doc();
   await db.runTransaction(async tx => {
-    const lock = await tx.get(lockRef);
+    const locks = [];
+    for (const ref of lockRefs) locks.push(await tx.get(ref));
     const existing = await tx.get(db.collection("appointments").where("barberId", "==", barberId));
-    if (lock.exists) throw new HttpsError("already-exists", "Bu saat az önce doldu. Başka bir saat seç.");
+    if (locks.some(lock => lock.exists)) throw new HttpsError("already-exists", "Bu saat az önce doldu. Başka bir saat seç.");
     const collision = existing.docs.some(doc => {
       const a = doc.data();
       return a.status === "confirmed" &&
@@ -174,7 +201,7 @@ export const bookAppointment = onCall(async (request) => {
         (a.endAt as Timestamp).toMillis() > start.getTime();
     });
     if (collision) throw new HttpsError("already-exists", "Bu saat başka bir randevuyla çakışıyor.");
-    tx.create(lockRef, {barberId, customerId: uid, appointmentId: appointmentRef.id, startAt: Timestamp.fromDate(start)});
+    for (const ref of lockRefs) tx.create(ref, {barberId, customerId: uid, appointmentId: appointmentRef.id, startAt: Timestamp.fromDate(start)});
     tx.create(appointmentRef, {
       barberId, customerId: uid, serviceId, serviceName: service.name,
       price: service.price, durationMinutes: minutes,
@@ -202,9 +229,17 @@ export const cancelAppointment = onCall(async (request) => {
       throw new HttpsError("permission-denied", "Bu randevuyu iptal etme yetkin yok.");
     }
     if (a.status !== "confirmed") throw new HttpsError("failed-precondition", "Randevu zaten iptal edilmiş veya tamamlanmış.");
-    const lockRef = db.doc(`slotLocks/${a.barberId}_${a.startAt.toMillis()}`);
+    const bucketMs = 30 * 60_000;
+    const startMs = (a.startAt as Timestamp).toMillis();
+    const endMs = (a.endAt as Timestamp).toMillis();
+    const lockRefs = [];
+    for (let t = startMs; t < endMs; t += bucketMs) {
+      const bucket = Math.floor(t / bucketMs) * bucketMs;
+      lockRefs.push(db.doc(`slotLocks/${a.barberId}_${bucket}`));
+    }
+    for (const ref of lockRefs) await tx.get(ref);
     tx.update(appointmentRef, {status: "cancelled", cancelledAt: FieldValue.serverTimestamp(), cancelledBy: uid});
-    tx.delete(lockRef);
+    for (const ref of lockRefs) tx.delete(ref);
     result = {barberId: a.barberId, customerId: a.customerId};
   });
   if (result) {

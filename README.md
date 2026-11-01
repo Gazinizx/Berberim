@@ -14,11 +14,11 @@ Fresh Flutter application for a multi-shop barber appointment service.
 
 ## Required deployment configuration
 This repository intentionally does not contain Firebase project credentials.
-Set Flutter build defines for FIREBASE_API_KEY, FIREBASE_APP_ID, FIREBASE_MESSAGING_SENDER_ID, and FIREBASE_PROJECT_ID to activate the app.
+Add these GitHub Actions repository secrets to activate the APK: FIREBASE_API_KEY, FIREBASE_APP_ID, FIREBASE_MESSAGING_SENDER_ID, FIREBASE_PROJECT_ID, and optionally FIREBASE_STORAGE_BUCKET. Without them the APK intentionally opens a setup screen instead of pretending a live backend exists.
 Deploy Cloud Functions and Firestore rules with a Firebase project:
 `firebase deploy --only functions,firestore:rules`
 
-The first administrator profile must be provisioned by a trusted administrator using Firebase Admin SDK; never grant admin role from the client app.
+During Functions deployment, set the Firebase parameter ADMIN_EMAIL to the administrator's exact Firebase Auth email. Create an account with that email in the app, then tap "Yönetici hesabını etkinleştir". The callable verifies the configured email server-side and only initializes an account that has no profile. Never grant admin role directly from the client.
 
 ## Build
 GitHub Actions -> **Build Android APK**. The generated APK is uploaded as a workflow artifact.
