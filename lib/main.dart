@@ -1,36 +1,23 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'firebase_options.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 const gold = Color(0xFFF2B84B);
 const ink = Color(0xFF151515);
 const panel = Color(0xFF242424);
-final auth = FirebaseAuth.instance;
-final db = FirebaseFirestore.instance;
-final functions = FirebaseFunctions.instance;
-final Set<String> _registeredTokenUsers = {};
+final supabase = Supabase.instance.client;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  var ready = false;
-  String? error;
-  if (DefaultFirebaseOptions.isConfigured) {
-    try {
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-      ready = true;
-    } catch (e) { error = e.toString(); }
+  const url = String.fromEnvironment('SUPABASE_URL');
+  const key = String.fromEnvironment('SUPABASE_ANON_KEY');
+  if (url.isNotEmpty && key.isNotEmpty) {
+    await Supabase.initialize(url: url, anonKey: key);
   }
-  runApp(BerberimApp(firebaseReady: ready, initError: error));
+  runApp(const BerberimApp());
 }
 
 class BerberimApp extends StatelessWidget {
-  const BerberimApp({super.key, required this.firebaseReady, this.initError});
-  final bool firebaseReady;
-  final String? initError;
+  const BerberimApp({super.key});
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Berberim', debugShowCheckedModeBanner: false,
@@ -40,87 +27,41 @@ class BerberimApp extends StatelessWidget {
       cardTheme: const CardThemeData(color: panel),
       inputDecorationTheme: InputDecorationTheme(
         filled: true, fillColor: panel,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-      ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none)),
       elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(
         backgroundColor: gold, foregroundColor: ink, minimumSize: const Size.fromHeight(48))),
     ),
-    home: firebaseReady ? const AuthGate() : SetupPage(error: initError),
+    home: const AuthGate(),
   );
-}
-
-class SetupPage extends StatelessWidget {
-  const SetupPage({super.key, this.error});
-  final String? error;
-  @override
-  Widget build(BuildContext context) => Scaffold(body: Center(child: Padding(
-    padding: const EdgeInsets.all(26), child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 480),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.content_cut, size: 64, color: gold),
-        const SizedBox(height: 16),
-        const Text('Berberim', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 14),
-        const Text('Uygulama kaynak kodu hazır. Canlı hesaplar ve randevular için Firebase projesi yapılandırılmalı.',
-          textAlign: TextAlign.center, style: TextStyle(height: 1.5, color: Colors.white70)),
-        const SizedBox(height: 12),
-        const Text('Gerekli yapılandırma: FIREBASE_API_KEY, FIREBASE_APP_ID, FIREBASE_MESSAGING_SENDER_ID ve FIREBASE_PROJECT_ID.',
-          textAlign: TextAlign.center, style: TextStyle(color: gold)),
-        if (error != null) Padding(padding: const EdgeInsets.only(top: 12),
-          child: Text(error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.redAccent))),
-      ]),
-    ),
-  )));
 }
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
   @override
-  Widget build(BuildContext context) => StreamBuilder<User?>(
-    stream: auth.authStateChanges(),
-    builder: (context, snap) {
-      if (snap.connectionState == ConnectionState.waiting) {
-        return const Scaffold(body: Center(child: CircularProgressIndicator(color: gold)));
-      }
-      final user = snap.data;
+  Widget build(BuildContext context) => StreamBuilder<AuthState>(
+    stream: supabase.auth.onAuthStateChange,
+    builder: (context, authSnap) {
+      final user = supabase.auth.currentUser;
       if (user == null) return const SignInPage();
-      return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: db.collection('users').doc(user.uid).snapshots(),
-        builder: (context, profile) {
-          if (profile.connectionState == ConnectionState.waiting) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator(color: gold)));
-          }
-          if (profile.hasError) return ErrorPage(message: 'Profil yüklenemedi: ${profile.error}');
-          if (!profile.hasData || !profile.data!.exists) return ProfileSetupPage(user: user);
-          final data = profile.data!.data()!;
-          _registerPushToken(user.uid);
-          final role = data['role'] as String? ?? 'customer';
-          if (role == 'admin') return const AdminPage();
-          if (role == 'barber') {
-            if (data['status'] != 'approved') return PendingPage(status: data['status'] ?? 'pending');
-            return BarberPage(profile: data);
-          }
-          return CustomerPage(profile: data);
+      return FutureBuilder<Map<String,dynamic>?>(
+        future: supabase.from('profiles').select().eq('id', user.id).maybeSingle(),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) return const LoadingPage();
+          if (snap.hasError) return ErrorPage(message: 'Profil okunamadı: ${snap.error}');
+          final p = snap.data;
+          if (p == null) return const ProfileSetupPage();
+          if (p['is_admin'] == true) return const AdminPage();
+          return HomePage(profile: p);
         },
       );
     },
   );
+}
 
-  void _registerPushToken(String uid) {
-    if (_registeredTokenUsers.contains(uid)) return;
-    _registeredTokenUsers.add(uid);
-    Future<void>(() async {
-      try {
-        await FirebaseMessaging.instance.requestPermission();
-        final token = await FirebaseMessaging.instance.getToken();
-        if (token != null) await functions.httpsCallable('registerDeviceToken').call({'token': token});
-        FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
-          try { await functions.httpsCallable('registerDeviceToken').call({'token': token}); } catch (_) {}
-        });
-      } catch (_) {
-        _registeredTokenUsers.remove(uid);
-      }
-    });
-  }
+class LoadingPage extends StatelessWidget {
+  const LoadingPage({super.key});
+  @override
+  Widget build(BuildContext context) => const Scaffold(body: Center(child: CircularProgressIndicator(color: gold)));
 }
 
 class ErrorPage extends StatelessWidget {
@@ -140,373 +81,198 @@ class _SignInPageState extends State<SignInPage> {
   bool create = false, busy = false;
   String error = '';
   Future<void> submit() async {
-    setState(() { busy = true; error = ''; });
+    setState(() {busy=true; error='';});
     try {
       if (create) {
         if (password.text.length < 8) throw Exception('Şifre en az 8 karakter olmalı.');
-        await auth.createUserWithEmailAndPassword(email: email.text.trim(), password: password.text);
+        await supabase.auth.signUp(email: email.text.trim(), password: password.text);
       } else {
-        await auth.signInWithEmailAndPassword(email: email.text.trim(), password: password.text);
+        await supabase.auth.signInWithPassword(email: email.text.trim(), password: password.text);
       }
-    } on FirebaseAuthException catch (e) {
-      error = switch (e.code) {
-        'email-already-in-use' => 'Bu e-posta zaten kayıtlı.',
-        'invalid-email' => 'E-posta biçimi geçersiz.',
-        'weak-password' => 'Şifre yeterince güçlü değil.',
-        'user-not-found' || 'wrong-password' || 'invalid-credential' => 'E-posta veya şifre hatalı.',
-        _ => e.message ?? 'Giriş başarısız.',
-      };
-    } catch (e) { error = e.toString().replaceFirst('Exception: ', ''); }
-    if (mounted) setState(() => busy = false);
+    } catch(e) { error = e.toString().replaceFirst('Exception: ', ''); }
+    if(mounted) setState(()=>busy=false);
   }
-  @override void dispose() { email.dispose(); password.dispose(); super.dispose(); }
-  @override Widget build(BuildContext context) => Scaffold(body: Center(child: SingleChildScrollView(
-    padding: const EdgeInsets.all(24), child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 440),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const Icon(Icons.content_cut, color: gold, size: 58),
-        const SizedBox(height: 10),
-        const Text('Berberim', textAlign: TextAlign.center, style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 6),
-        Text(create ? 'Hesabını oluştur' : 'Hesabına giriş yap', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white60)),
-        const SizedBox(height: 28),
-        TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'E-posta')),
-        const SizedBox(height: 12),
-        TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'Şifre')),
-        if (error.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error, style: const TextStyle(color: Colors.redAccent))),
-        const SizedBox(height: 18),
-        ElevatedButton(onPressed: busy ? null : submit, child: Text(busy ? 'Lütfen bekle…' : create ? 'Kayıt ol' : 'Giriş yap')),
-        TextButton(onPressed: busy ? null : () => setState(() { create = !create; error = ''; }),
-          child: Text(create ? 'Zaten hesabın var mı? Giriş yap' : 'Yeni hesap oluştur')),
-      ]),
-    ),
-  )));
+  @override
+  void dispose(){email.dispose();password.dispose();super.dispose();}
+  @override
+  Widget build(BuildContext context)=>Scaffold(body:Center(child:SingleChildScrollView(
+    padding:const EdgeInsets.all(24), child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:440),
+    child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      const Icon(Icons.content_cut,color:gold,size:62),
+      const SizedBox(height:10),
+      const Text('Berberim',textAlign:TextAlign.center,style:TextStyle(fontSize:36,fontWeight:FontWeight.w900)),
+      const SizedBox(height:8),
+      Text(create?'Hesabını oluştur':'Hesabına giriş yap',textAlign:TextAlign.center,style:const TextStyle(color:Colors.white60)),
+      const SizedBox(height:26),
+      TextField(controller:email,keyboardType:TextInputType.emailAddress,decoration:const InputDecoration(labelText:'E-posta')),
+      const SizedBox(height:12),
+      TextField(controller:password,obscureText:true,decoration:const InputDecoration(labelText:'Şifre')),
+      if(error.isNotEmpty) Padding(padding:const EdgeInsets.only(top:12),child:Text(error,style:const TextStyle(color:Colors.redAccent))),
+      const SizedBox(height:18),
+      ElevatedButton(onPressed:busy?null:submit,child:Text(busy?'Bekleyin…':create?'Kayıt ol':'Giriş yap')),
+      TextButton(onPressed:busy?null:()=>setState(()=>create=!create),child:Text(create?'Giriş yap':'Yeni hesap oluştur')),
+    ])))));
 }
 
 class ProfileSetupPage extends StatefulWidget {
-  const ProfileSetupPage({super.key, required this.user});
-  final User user;
-  @override State<ProfileSetupPage> createState() => _ProfileSetupPageState();
+  const ProfileSetupPage({super.key});
+  @override State<ProfileSetupPage> createState()=>_ProfileSetupPageState();
 }
-class _ProfileSetupPageState extends State<ProfileSetupPage> {
-  final name = TextEditingController(), code = TextEditingController(), phone = TextEditingController(), shop = TextEditingController();
-  bool barber = false, busy = false;
-  String error = '';
+class _ProfileSetupPageState extends State<ProfileSetupPage>{
+  final name=TextEditingController(), phone=TextEditingController(), code=TextEditingController(), shop=TextEditingController(), address=TextEditingController();
+  bool owner=false,busy=false; String error='';
   Future<void> submit() async {
-    if (name.text.trim().isEmpty || (barber && shop.text.trim().isEmpty) || (!barber && code.text.trim().isEmpty)) {
-      setState(() => error = 'Lütfen gerekli alanları doldur.'); return;
+    if(name.text.trim().isEmpty || (owner && shop.text.trim().isEmpty) || (!owner && code.text.trim().isEmpty)){
+      setState(()=>error='Gerekli alanları doldur.');return;
     }
-    setState(() { busy = true; error = ''; });
-    try {
-      final callable = functions.httpsCallable(barber ? 'applyForBarber' : 'joinWithBarberCode');
-      await callable.call({
-        'name': name.text.trim(), 'phone': phone.text.trim(),
-        if (barber) 'shopName': shop.text.trim() else 'barberCode': code.text.trim().toUpperCase(),
-      });
-    } on FirebaseFunctionsException catch (e) {
-      error = e.message ?? 'Kayıt tamamlanamadı.';
-    } catch (e) { error = e.toString(); }
-    if (mounted) setState(() => busy = false);
-  }
-  @override void dispose() { name.dispose(); code.dispose(); phone.dispose(); shop.dispose(); super.dispose(); }
-  @override Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Hesap bilgileri'), actions: [IconButton(onPressed: () => auth.signOut(), icon: const Icon(Icons.logout))]),
-    body: ListView(padding: const EdgeInsets.all(20), children: [
-      SegmentedButton<bool>(segments: const [
-        ButtonSegment(value: false, label: Text('Müşteriyim'), icon: Icon(Icons.person_outline)),
-        ButtonSegment(value: true, label: Text('Berberim'), icon: Icon(Icons.storefront_outlined)),
-      ], selected: {barber}, onSelectionChanged: (v) => setState(() { barber = v.first; error = ''; })),
-      const SizedBox(height: 16),
-      TextField(controller: name, decoration: InputDecoration(labelText: barber ? 'Yetkili adı soyadı' : 'Ad soyad')),
-      if (barber) ...[
-        const SizedBox(height: 12), TextField(controller: shop, decoration: const InputDecoration(labelText: 'İşletme adı')),
-      ] else ...[
-        const SizedBox(height: 12), TextField(controller: code, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Berber işletme kodu')),
-      ],
-      const SizedBox(height: 12), TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Telefon (isteğe bağlı)')),
-      if (error.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error, style: const TextStyle(color: Colors.redAccent))),
-      const SizedBox(height: 18),
-      ElevatedButton(onPressed: busy ? null : submit, child: Text(busy ? 'Gönderiliyor…' : barber ? 'İşletme başvurusu gönder' : 'İşletme koduyla katıl')),
-      const SizedBox(height: 8),
-      OutlinedButton(onPressed: busy ? null : () async {
-        setState(() { busy = true; error = ''; });
-        try {
-          await functions.httpsCallable('bootstrapAdmin').call();
-        } on FirebaseFunctionsException catch (e) {
-          if (mounted) setState(() => error = e.message ?? 'Yönetici kurulumu başarısız.');
-        } catch (e) {
-          if (mounted) setState(() => error = e.toString());
-        }
-        if (mounted) setState(() => busy = false);
-      }, child: const Text('Yönetici hesabını etkinleştir')),
-      const SizedBox(height: 8),
-      const Text('Berber işletme başvuruları yönetici onayından sonra açılır.', style: TextStyle(color: Colors.white54)),
-    ]),
-  );
-}
-
-class PendingPage extends StatelessWidget {
-  const PendingPage({super.key, required this.status});
-  final String status;
-  @override Widget build(BuildContext context) => Scaffold(body: Center(child: Padding(
-    padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-      const Icon(Icons.hourglass_top, size: 58, color: gold), const SizedBox(height: 18),
-      Text(status == 'rejected' ? 'Başvurun reddedildi' : 'Başvurun inceleniyor',
-        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 10),
-      const Text('İşletmen, yönetici onayından sonra aktif olacaktır.', textAlign: TextAlign.center),
-      const SizedBox(height: 20), OutlinedButton(onPressed: () => auth.signOut(), child: const Text('Çıkış yap')),
-    ]),
-  )));
-}
-
-class CustomerPage extends StatefulWidget {
-  const CustomerPage({super.key, required this.profile});
-  final Map<String, dynamic> profile;
-  @override State<CustomerPage> createState() => _CustomerPageState();
-}
-class _CustomerPageState extends State<CustomerPage> {
-  DateTime day = DateTime.now();
-  String? serviceId, message;
-  bool busy = false;
-  String dateKey(DateTime d) => '${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
-  Future<void> book(String time) async {
-    if (serviceId == null) { setState(() => message = 'Önce hizmet seç.'); return; }
-    setState(() { busy = true; message = null; });
-    try {
-      final parts = time.split(':').map(int.parse).toList();
-      final localStart = DateTime(day.year, day.month, day.day, parts[0], parts[1]);
-      await functions.httpsCallable('bookAppointment').call({'date': dateKey(day), 'time': time, 'startAtMillis': localStart.millisecondsSinceEpoch, 'serviceId': serviceId});
-      if (mounted) setState(() => message = 'Randevun onaylandı.');
-    } on FirebaseFunctionsException catch (e) {
-      if (mounted) setState(() => message = e.message ?? 'Randevu oluşturulamadı.');
-    } catch (e) { if (mounted) setState(() => message = e.toString()); }
-    if (mounted) setState(() => busy = false);
-  }
-  @override Widget build(BuildContext context) {
-    final barberId = widget.profile['barberId'] as String? ?? '';
-    return Scaffold(
-      appBar: AppBar(title: const Text('Berberim'), actions: [IconButton(onPressed: () => auth.signOut(), icon: const Icon(Icons.logout))]),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        const Text('Randevu oluştur', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 12),
-        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: db.collection('services').where('barberId', isEqualTo: barberId).where('isActive', isEqualTo: true).snapshots(),
-          builder: (context, snap) {
-            if (snap.hasError) return Text('Hizmetler yüklenemedi: ${snap.error}');
-            if (!snap.hasData) return const LinearProgressIndicator();
-            final docs = snap.data!.docs;
-            if (docs.isEmpty) return const Text('Bu işletmede henüz hizmet eklenmemiş.');
-            serviceId ??= docs.first.id;
-            return DropdownButtonFormField<String>(
-              value: docs.any((d) => d.id == serviceId) ? serviceId : docs.first.id,
-              decoration: const InputDecoration(labelText: 'Hizmet seç'),
-              items: docs.map((d) => DropdownMenuItem(value: d.id,
-                child: Text('${d.data()['name']} • ${d.data()['price']} TL (${d.data()['durationMinutes']} dk)'))).toList(),
-              onChanged: (v) => setState(() => serviceId = v),
-            );
-          },
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(onPressed: () async {
-          final picked = await showDatePicker(context: context, initialDate: day,
-            firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 90)));
-          if (picked != null) setState(() => day = picked);
-        }, icon: const Icon(Icons.calendar_month), label: Text(dateKey(day))),
-        if (message != null) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(message!, style: const TextStyle(color: gold))),
-        const SizedBox(height: 8), const Text('Saat seç', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        ...List.generate(22, (i) {
-          final minutes = 9 * 60 + i * 30;
-          final time = '${(minutes ~/ 60).toString().padLeft(2,'0')}:${(minutes % 60).toString().padLeft(2,'0')}';
-          return Padding(padding: const EdgeInsets.only(bottom: 8), child: OutlinedButton(
-            onPressed: busy ? null : () => book(time), child: Text(busy ? 'İşleniyor…' : time)));
-        }),
-        const SizedBox(height: 12),
-        const Text('Saat çakışmaları sunucu tarafında kontrol edilir.', style: TextStyle(color: Colors.white54)),
-        const SizedBox(height: 20), const Text('Randevularım', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold)),
-        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: db.collection('appointments').where('customerId', isEqualTo: auth.currentUser!.uid).snapshots(),
-          builder: (context, snap) {
-            if (snap.hasError) return Text('Randevular yüklenemedi: ${snap.error}');
-            if (!snap.hasData) return const LinearProgressIndicator();
-            final docs = [...snap.data!.docs]..sort((a,b) => (a.data()['startAt'] as Timestamp).compareTo(b.data()['startAt'] as Timestamp));
-            if (docs.isEmpty) return const Text('Henüz randevu yok.');
-            return Column(children: docs.map((d) {
-              final a = d.data();
-              return Card(child: ListTile(
-                title: Text('${a['serviceName']} • ${a['status']}'),
-                subtitle: Text('${a['customerName'] ?? 'Müşteri'} • ${a['customerPhone'] ?? ''}\n${(a['startAt'] as Timestamp).toDate().toLocal()}'),
-                trailing: a['status'] == 'confirmed' ? IconButton(icon: const Icon(Icons.cancel_outlined), onPressed: () async {
-                  try { await functions.httpsCallable('cancelAppointment').call({'appointmentId': d.id}); }
-                  catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'))); }
-                }) : null,
-              ));
-            }).toList());
-          },
-        ),
-      ]),
-    );
-  }
-}
-
-class BarberPage extends StatefulWidget {
-  const BarberPage({super.key, required this.profile});
-  final Map<String, dynamic> profile;
-  @override State<BarberPage> createState() => _BarberPageState();
-}
-class _BarberPageState extends State<BarberPage> {
-  final serviceName = TextEditingController(), price = TextEditingController(), duration = TextEditingController(text: '30');
-  final opening = TextEditingController(text: '09:00'), closing = TextEditingController(text: '20:00');
-  String? notice;
-  @override void initState() {
-    super.initState();
-    final hours = widget.profile['workingHours'];
-    if (hours is Map) {
-      opening.text = (hours['opening'] ?? '09:00').toString();
-      closing.text = (hours['closing'] ?? '20:00').toString();
-    }
-  }
-  Future<void> editService(DocumentSnapshot<Map<String, dynamic>> doc) async {
-    final data = doc.data();
-    if (data == null) return;
-    final name = TextEditingController(text: (data['name'] ?? '').toString());
-    final price = TextEditingController(text: (data['price'] ?? 0).toString());
-    final duration = TextEditingController(text: (data['durationMinutes'] ?? 30).toString());
-    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('Hizmeti düzenle'),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: name, decoration: const InputDecoration(labelText: 'Hizmet adı')),
-        const SizedBox(height: 8),
-        TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Ücret (TL)')),
-        const SizedBox(height: 8),
-        TextField(controller: duration, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Süre (dk)')),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
-        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Kaydet')),
-      ],
-    ));
-    final p = int.tryParse(price.text), mins = int.tryParse(duration.text);
-    if (ok == true) {
-      if (name.text.trim().isEmpty || p == null || p < 0 || mins == null || mins < 5 || mins > 360) {
-        if (mounted) setState(() => notice = 'Hizmet adı, ücret veya süre geçersiz.');
-      } else {
-        try {
-          await doc.reference.update({'name': name.text.trim(), 'price': p, 'durationMinutes': mins});
-          if (mounted) setState(() => notice = 'Hizmet güncellendi.');
-        } catch (e) { if (mounted) setState(() => notice = 'Güncelleme başarısız: $e'); }
+    setState(()=>busy=true);
+    try{
+      await supabase.from('profiles').update({'full_name':name.text.trim(),'phone':phone.text.trim()}).eq('id',supabase.auth.currentUser!.id);
+      if(owner){
+        await supabase.rpc('create_business',params:{'p_name':shop.text.trim(),'p_address':address.text.trim()});
+      }else{
+        await supabase.rpc('join_business_by_code',params:{'p_code':code.text.trim().toUpperCase()});
       }
-    }
-    name.dispose(); price.dispose(); duration.dispose();
+    }catch(e){error=e.toString();}
+    if(mounted)setState(()=>busy=false);
   }
-  Future<void> addService() async {
-    final name = serviceName.text.trim(), p = int.tryParse(price.text), mins = int.tryParse(duration.text);
-    if (name.isEmpty || p == null || p < 0 || mins == null || mins < 5 || mins > 360) {
-      setState(() => notice = 'Hizmet adı, geçerli ücret ve 5–360 dakika süre gir.'); return;
-    }
-    try {
-      await db.collection('services').add({'barberId': auth.currentUser!.uid, 'name': name, 'price': p,
-        'durationMinutes': mins, 'isActive': true, 'createdAt': FieldValue.serverTimestamp()});
-      serviceName.clear(); price.clear(); duration.text = '30';
-      setState(() => notice = 'Hizmet eklendi.');
-    } catch (e) { setState(() => notice = 'Hizmet eklenemedi: $e'); }
+  @override void dispose(){name.dispose();phone.dispose();code.dispose();shop.dispose();address.dispose();super.dispose();}
+  @override Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('Hesap bilgileri'),actions:[IconButton(onPressed:()=>supabase.auth.signOut(),icon:const Icon(Icons.logout))]),
+    body:ListView(padding:const EdgeInsets.all(20),children:[
+      SegmentedButton<bool>(segments:const[
+        ButtonSegment(value:false,label:Text('Müşteriyim'),icon:Icon(Icons.person_outline)),
+        ButtonSegment(value:true,label:Text('İşletme sahibiyim'),icon:Icon(Icons.storefront_outlined)),
+      ],selected:{owner},onSelectionChanged:(v)=>setState(()=>owner=v.first)),
+      const SizedBox(height:16),
+      TextField(controller:name,decoration:const InputDecoration(labelText:'Ad soyad')),
+      const SizedBox(height:12),
+      TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Telefon (isteğe bağlı)')),
+      if(owner)...[
+        const SizedBox(height:12),TextField(controller:shop,decoration:const InputDecoration(labelText:'İşletme adı')),
+        const SizedBox(height:12),TextField(controller:address,decoration:const InputDecoration(labelText:'Adres (isteğe bağlı)')),
+      ]else...[
+        const SizedBox(height:12),TextField(controller:code,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(labelText:'İşletme katılım kodu')),
+      ],
+      if(error.isNotEmpty)Padding(padding:const EdgeInsets.only(top:12),child:Text(error,style:const TextStyle(color:Colors.redAccent))),
+      const SizedBox(height:18),
+      ElevatedButton(onPressed:busy?null:submit,child:Text(busy?'Gönderiliyor…':owner?'İşletme başvurusu gönder':'İşletmeye katıl')),
+      const SizedBox(height:8),
+      const Text('İşletme başvuruları yönetici onayından sonra aktif olur.',style:TextStyle(color:Colors.white54)),
+    ]));
+}
+
+class HomePage extends StatefulWidget {
+  const HomePage({super.key,required this.profile});
+  final Map<String,dynamic> profile;
+  @override State<HomePage> createState()=>_HomePageState();
+}
+class _HomePageState extends State<HomePage>{
+  String? selectedBusiness;
+  Future<List<Map<String,dynamic>>> getBusinesses() async {
+    final uid=supabase.auth.currentUser!.id;
+    final owned=await supabase.from('businesses').select().eq('owner_id',uid);
+    final memberships=await supabase.from('business_memberships').select('business_id').eq('customer_id',uid);
+    final ids=memberships.map((e)=>e['business_id'] as String).toList();
+    final joined=ids.isEmpty? <Map<String,dynamic>>[] : await supabase.from('businesses').select().inFilter('id',ids);
+    final all=<String,Map<String,dynamic>>{};
+    for(final b in [...owned,...joined]){all[b['id'] as String]=b;}
+    return all.values.toList();
   }
-  Future<void> saveHours() async {
-    try {
-      await functions.httpsCallable('updateBusinessHours').call({'opening': opening.text.trim(), 'closing': closing.text.trim()});
-      if (mounted) setState(() => notice = 'Çalışma saatleri kaydedildi.');
-    } on FirebaseFunctionsException catch (e) {
-      if (mounted) setState(() => notice = e.message ?? 'Saatler kaydedilemedi.');
-    }
-  }
-  @override void dispose() { serviceName.dispose(); price.dispose(); duration.dispose(); opening.dispose(); closing.dispose(); super.dispose(); }
-  @override Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.profile['shopName'] ?? 'Berber paneli'), actions: [IconButton(onPressed: () => auth.signOut(), icon: const Icon(Icons.logout))]),
-    body: ListView(padding: const EdgeInsets.all(16), children: [
-      const Text('İşletme paneli', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 8),
-      SelectableText('İşletme kodu: ${widget.profile['barberCode'] ?? 'Kod hazırlanıyor'}',
-        style: const TextStyle(color: gold, fontSize: 16, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 18), const Text('Çalışma saatleri', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 10),
-      Row(children: [
-        Expanded(child: TextField(controller: opening, decoration: const InputDecoration(labelText: 'Açılış (SS:DD)'))),
-        const SizedBox(width: 10),
-        Expanded(child: TextField(controller: closing, decoration: const InputDecoration(labelText: 'Kapanış (SS:DD)'))),
-      ]),
-      const SizedBox(height: 10), OutlinedButton(onPressed: saveHours, child: const Text('Çalışma saatlerini kaydet')),
-      const SizedBox(height: 18), const Text('Hizmet yönetimi', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 10), TextField(controller: serviceName, decoration: const InputDecoration(labelText: 'Hizmet adı')),
-      const SizedBox(height: 10),
-      Row(children: [
-        Expanded(child: TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Ücret (TL)'))),
-        const SizedBox(width: 10),
-        Expanded(child: TextField(controller: duration, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Süre (dk)'))),
-      ]),
-      const SizedBox(height: 10), ElevatedButton(onPressed: addService, child: const Text('Hizmet ekle')),
-      if (notice != null) Padding(padding: const EdgeInsets.all(8), child: Text(notice!, style: const TextStyle(color: gold))),
-      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: db.collection('services').where('barberId', isEqualTo: auth.currentUser!.uid).snapshots(),
-        builder: (context, snap) {
-          if (snap.hasError) return Text('Hizmetler yüklenemedi: ${snap.error}');
-          if (!snap.hasData) return const LinearProgressIndicator();
-          return Column(children: snap.data!.docs.map((d) => Card(child: ListTile(
-            title: Text(d.data()['name'] ?? ''), subtitle: Text('${d.data()['price']} TL • ${d.data()['durationMinutes']} dk'),
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => editService(d)),
-              Switch(value: d.data()['isActive'] == true, onChanged: (v) => d.reference.update({'isActive': v})),
-            ]),
-          ))).toList());
-        },
-      ),
-      const SizedBox(height: 18), const Text('Randevular', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold)),
-      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: db.collection('appointments').where('barberId', isEqualTo: auth.currentUser!.uid).snapshots(),
-        builder: (context, snap) {
-          if (snap.hasError) return Text('Randevular yüklenemedi: ${snap.error}');
-          if (!snap.hasData) return const LinearProgressIndicator();
-          if (snap.data!.docs.isEmpty) return const Text('Henüz randevu yok.');
-          return Column(children: snap.data!.docs.map((d) {
-            final a = d.data();
-            return Card(child: ListTile(
-              title: Text('${a['serviceName']} • ${a['status']}'),
-              subtitle: Text((a['startAt'] as Timestamp).toDate().toLocal().toString()),
-              trailing: a['status'] == 'confirmed' ? IconButton(icon: const Icon(Icons.cancel_outlined),
-                onPressed: () async { try { await functions.httpsCallable('cancelAppointment').call({'appointmentId': d.id}); }
-                  catch (e) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'))); } }) : null,
-            ));
-          }).toList());
-        },
-      ),
-    ]),
+  @override
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('Berberim'),actions:[IconButton(onPressed:()=>supabase.auth.signOut(),icon:const Icon(Icons.logout))]),
+    body:FutureBuilder<List<Map<String,dynamic>>>(future:getBusinesses(),builder:(context,snap){
+      if(snap.connectionState==ConnectionState.waiting)return const LoadingPage();
+      if(snap.hasError)return ErrorPage(message:'İşletmeler yüklenemedi: ${snap.error}');
+      final businesses=snap.data??[];
+      if(businesses.isEmpty)return const ProfileSetupPage();
+      final active=businesses.where((b)=>b['status']=='active').toList();
+      final pending=businesses.where((b)=>b['status']=='pending').toList();
+      if(active.isEmpty)return Center(child:Text(pending.isNotEmpty?'İşletme başvurun yönetici onayında.':'Henüz aktif işletme yok.'));
+      final current=active.firstWhere((b)=>b['id']==selectedBusiness,orElse:()=>active.first);
+      selectedBusiness=current['id'] as String;
+      final isOwner=current['owner_id']==supabase.auth.currentUser!.id;
+      return ListView(padding:const EdgeInsets.all(16),children:[
+        if(active.length>1)DropdownButtonFormField<String>(value:selectedBusiness,decoration:const InputDecoration(labelText:'İşletme seç'),
+          items:active.map((b)=>DropdownMenuItem(value:b['id'] as String,child:Text(b['name'] as String))).toList(),
+          onChanged:(v)=>setState(()=>selectedBusiness=v)),
+        Text(current['name'] as String,style:const TextStyle(fontSize:25,fontWeight:FontWeight.bold)),
+        if(isOwner)Text('Katılım kodu: ${current['join_code']}',style:const TextStyle(color:gold)),
+        if(isOwner)OwnerTools(business:current),
+        if(!isOwner)CustomerTools(business:current),
+      ]);
+    }),
   );
 }
 
-class AdminPage extends StatelessWidget {
+class OwnerTools extends StatefulWidget{
+  const OwnerTools({super.key,required this.business}); final Map<String,dynamic> business;
+  @override State<OwnerTools> createState()=>_OwnerToolsState();
+}
+class _OwnerToolsState extends State<OwnerTools>{
+  final employee=TextEditingController(),service=TextEditingController(),price=TextEditingController(),duration=TextEditingController(text:'30');
+  String notice='';
+  Future<void> addEmployee()async{try{await supabase.from('employees').insert({'business_id':widget.business['id'],'display_name':employee.text.trim()});employee.clear();setState(()=>notice='Çalışan eklendi.');}catch(e){setState(()=>notice=e.toString());}}
+  Future<void> addService()async{final p=double.tryParse(price.text),d=int.tryParse(duration.text);if(service.text.trim().isEmpty||p==null||d==null){setState(()=>notice='Hizmet bilgileri geçersiz.');return;}try{await supabase.from('services').insert({'business_id':widget.business['id'],'name':service.text.trim(),'price':p,'duration_minutes':d});service.clear();price.clear();setState(()=>notice='Hizmet eklendi.');}catch(e){setState(()=>notice=e.toString());}}
+  Future<void> saveHours()async{try{final rows=<Map<String,dynamic>>[];for(var day=0;day<7;day++){rows.add({'business_id':widget.business['id'],'weekday':day,'opens_at':'09:00','closes_at':'20:00','is_closed':day==0});}await supabase.from('business_hours').upsert(rows,onConflict:'business_id,weekday');setState(()=>notice='Çalışma saatleri kaydedildi (Pazar kapalı, diğer günler 09:00–20:00).');}catch(e){setState(()=>notice=e.toString());}}
+  @override void dispose(){employee.dispose();service.dispose();price.dispose();duration.dispose();super.dispose();}
+  @override Widget build(BuildContext context)=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+    const SizedBox(height:16),const Text('Çalışanlar',style:TextStyle(fontSize:19,fontWeight:FontWeight.bold)),
+    TextField(controller:employee,decoration:const InputDecoration(labelText:'Çalışan adı')),
+    const SizedBox(height:8),ElevatedButton(onPressed:addEmployee,child:const Text('Çalışan ekle')),
+    StreamBuilder<List<Map<String,dynamic>>>(stream:supabase.from('employees').stream(primaryKey:['id']).eq('business_id',widget.business['id']),builder:(c,s){if(!s.hasData)return const SizedBox.shrink();return Column(children:s.data!.map((e)=>ListTile(title:Text(e['display_name'] as String))).toList());}),
+    const Divider(height:28),const Text('Hizmetler',style:TextStyle(fontSize:19,fontWeight:FontWeight.bold)),
+    TextField(controller:service,decoration:const InputDecoration(labelText:'Hizmet adı')),
+    const SizedBox(height:8),Row(children:[Expanded(child:TextField(controller:price,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Ücret (TL)'))),const SizedBox(width:8),Expanded(child:TextField(controller:duration,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Süre (dk)')))]),
+    const SizedBox(height:8),ElevatedButton(onPressed:addService,child:const Text('Hizmet ekle')),
+    StreamBuilder<List<Map<String,dynamic>>>(stream:supabase.from('services').stream(primaryKey:['id']).eq('business_id',widget.business['id']),builder:(c,s){if(!s.hasData)return const SizedBox.shrink();return Column(children:s.data!.map((e)=>ListTile(title:Text(e['name'] as String),subtitle:Text('${e['price']} TL • ${e['duration_minutes']} dk'))).toList());}),
+    const Divider(height:28),const Text('Çalışma saatleri',style:TextStyle(fontSize:19,fontWeight:FontWeight.bold)),
+    const Text('Şimdilik varsayılan saatler: Pazartesi–Cumartesi 09:00–20:00, Pazar kapalı.'),
+    ElevatedButton(onPressed:saveHours,child:const Text('Varsayılan saatleri kaydet')),
+    if(notice.isNotEmpty)Padding(padding:const EdgeInsets.all(8),child:Text(notice,style:const TextStyle(color:gold))),
+  ]);
+}
+
+class CustomerTools extends StatefulWidget{
+  const CustomerTools({super.key,required this.business});final Map<String,dynamic> business;
+  @override State<CustomerTools> createState()=>_CustomerToolsState();
+}
+class _CustomerToolsState extends State<CustomerTools>{
+  String? employeeId,serviceId;DateTime day=DateTime.now();String notice='';
+  Future<void> book()async{
+    if(employeeId==null||serviceId==null){setState(()=>notice='Çalışan ve hizmet seçmelisin.');return;}
+    final local=DateTime(day.year,day.month,day.day,10);
+    try{await supabase.rpc('book_appointment',params:{'p_business_id':widget.business['id'],'p_employee_id':employeeId,'p_service_id':serviceId,'p_starts_at':local.toUtc().toIso8601String()});setState(()=>notice='Randevun onaylandı.');}
+    catch(e){setState(()=>notice=e.toString());}
+  }
+  @override Widget build(BuildContext context)=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+    const SizedBox(height:16),const Text('Randevu oluştur',style:TextStyle(fontSize:20,fontWeight:FontWeight.bold)),
+    StreamBuilder<List<Map<String,dynamic>>>(stream:supabase.from('employees').stream(primaryKey:['id']).eq('business_id',widget.business['id']).eq('is_active',true),builder:(c,s){
+      final rows=s.data??[];return DropdownButtonFormField<String>(value:rows.any((e)=>e['id']==employeeId)?employeeId:null,decoration:const InputDecoration(labelText:'Çalışan seç'),items:rows.map((e)=>DropdownMenuItem(value:e['id'] as String,child:Text(e['display_name'] as String))).toList(),onChanged:(v)=>setState(()=>employeeId=v));}),
+    const SizedBox(height:10),
+    StreamBuilder<List<Map<String,dynamic>>>(stream:supabase.from('services').stream(primaryKey:['id']).eq('business_id',widget.business['id']).eq('is_active',true),builder:(c,s){
+      final rows=s.data??[];return DropdownButtonFormField<String>(value:rows.any((e)=>e['id']==serviceId)?serviceId:null,decoration:const InputDecoration(labelText:'Hizmet seç'),items:rows.map((e)=>DropdownMenuItem(value:e['id'] as String,child:Text('${e['name']} • ${e['price']} TL / ${e['duration_minutes']} dk'))).toList(),onChanged:(v)=>setState(()=>serviceId=v));}),
+    const SizedBox(height:10),OutlinedButton.icon(onPressed:()async{final d=await showDatePicker(context:context,initialDate:day,firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:90)));if(d!=null)setState(()=>day=d);},icon:const Icon(Icons.calendar_month),label:Text('${day.day.toString().padLeft(2,'0')}.${day.month.toString().padLeft(2,'0')}.${day.year}')),
+    const Text('Şimdilik randevu saati 10:00 olarak ayarlanır.',style:TextStyle(color:Colors.white54)),
+    ElevatedButton(onPressed:book,child:const Text('10:00 için randevu al')),
+    if(notice.isNotEmpty)Text(notice,style:const TextStyle(color:gold)),
+    const Divider(height:28),const Text('Randevularım',style:TextStyle(fontSize:19,fontWeight:FontWeight.bold)),
+    StreamBuilder<List<Map<String,dynamic>>>(stream:supabase.from('appointments').stream(primaryKey:['id']).eq('customer_id',supabase.auth.currentUser!.id),builder:(c,s){
+      if(s.hasError)return Text('Randevular yüklenemedi: ${s.error}');final rows=s.data??[];return Column(children:rows.map((a)=>ListTile(title:Text('${a['starts_at']} • ${a['status']}'),trailing:a['status']=='confirmed'?IconButton(icon:const Icon(Icons.cancel_outlined),onPressed:()async{try{await supabase.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});}catch(e){setState(()=>notice=e.toString());}}):null)).toList());}),
+  ]);
+}
+
+class AdminPage extends StatelessWidget{
   const AdminPage({super.key});
-  @override Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Yönetici paneli'), actions: [IconButton(onPressed: () => auth.signOut(), icon: const Icon(Icons.logout))]),
-    body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: db.collection('barberApplications').where('status', isEqualTo: 'pending').snapshots(),
-      builder: (context, snap) {
-        if (snap.hasError) return Center(child: Text('Başvurular yüklenemedi: ${snap.error}'));
-        if (!snap.hasData) return const Center(child: CircularProgressIndicator(color: gold));
-        if (snap.data!.docs.isEmpty) return const Center(child: Text('Bekleyen başvuru yok.'));
-        return ListView(padding: const EdgeInsets.all(16), children: snap.data!.docs.map((d) {
-          final a = d.data();
-          return Card(child: ListTile(
-            title: Text(a['shopName'] ?? 'İsimsiz işletme'),
-            subtitle: Text('${a['name'] ?? ''} • ${a['email'] ?? ''}'),
-            trailing: PopupMenuButton<String>(onSelected: (v) async {
-              try { await functions.httpsCallable('reviewBarberApplication').call({'applicationId': d.id, 'decision': v}); }
-              catch (e) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'))); }
-            }, itemBuilder: (_) => const [
-              PopupMenuItem(value: 'approve', child: Text('Onayla')),
-              PopupMenuItem(value: 'reject', child: Text('Reddet')),
-            ]),
-          ));
-        }).toList());
-      },
-    ),
-  );
+  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Yönetici')),body:ListView(padding:const EdgeInsets.all(16),children:[
+    const Text('İşletme başvuruları',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),
+    StreamBuilder<List<Map<String,dynamic>>>(stream:supabase.from('businesses').stream(primaryKey:['id']).eq('status','pending'),builder:(c,s){
+      if(s.hasError)return Text('Başvurular okunamadı: ${s.error}');if(!s.hasData)return const LoadingPage();
+      return Column(children:s.data!.map((b)=>Card(child:ListTile(title:Text(b['name'] as String),subtitle:Text(b['address']??''),trailing:Wrap(children:[
+        IconButton(icon:const Icon(Icons.check,color:Colors.green),onPressed:()async{await supabase.rpc('admin_review_business',params:{'p_business_id':b['id'],'p_decision':'active'});}),
+        IconButton(icon:const Icon(Icons.close,color:Colors.red),onPressed:()async{await supabase.rpc('admin_review_business',params:{'p_business_id':b['id'],'p_decision':'rejected'});}),
+      ])))).toList());}),
+    const SizedBox(height:20),OutlinedButton(onPressed:()=>supabase.auth.signOut(),child:const Text('Çıkış yap')),
+  ]));
 }
