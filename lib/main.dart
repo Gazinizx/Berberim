@@ -179,6 +179,135 @@ class ConfigGate extends StatelessWidget {
   }
 }
 
+
+void toast(BuildContext context, String message) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
+}
+
+class AppPanel extends StatelessWidget {
+  const AppPanel({super.key, required this.child, this.padding = const EdgeInsets.all(18), this.margin});
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry? margin;
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: margin,
+    padding: padding,
+    decoration: BoxDecoration(
+      color: panel,
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: border),
+    ),
+    child: child,
+  );
+}
+
+class ScreenHeading extends StatelessWidget {
+  const ScreenHeading({super.key, required this.title, required this.subtitle, this.eyebrow, this.icon});
+  final String title;
+  final String subtitle;
+  final String? eyebrow;
+  final IconData? icon;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 22),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (icon != null) Container(
+        width: 48, height: 48,
+        decoration: BoxDecoration(color: gold.withValues(alpha: .13), borderRadius: BorderRadius.circular(15)),
+        child: Icon(icon, color: gold, size: 24),
+      ),
+      if (icon != null) const SizedBox(width: 14),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (eyebrow != null) Padding(
+          padding: const EdgeInsets.only(bottom: 5),
+          child: Text(eyebrow!.toUpperCase(), style: const TextStyle(color: gold, fontSize: 10, letterSpacing: 1.7, fontWeight: FontWeight.w800)),
+        ),
+        Text(title, style: const TextStyle(fontSize: 25, height: 1.12, fontWeight: FontWeight.w800, letterSpacing: -.65)),
+        const SizedBox(height: 7),
+        Text(subtitle, style: const TextStyle(color: muted, fontSize: 13, height: 1.45)),
+      ])),
+    ]),
+  );
+}
+
+class SectionHeading extends StatelessWidget {
+  const SectionHeading(this.title, {super.key, this.action});
+  final String title;
+  final Widget? action;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 12, top: 7),
+    child: Row(children: [
+      Expanded(child: Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: -.25))),
+      if (action != null) action!,
+    ]),
+  );
+}
+
+class BrandMark extends StatelessWidget {
+  const BrandMark({super.key, this.compact = false});
+  final bool compact;
+  @override
+  Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, children: [
+    Container(
+      width: compact ? 54 : 68, height: compact ? 54 : 68,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(compact ? 17 : 21),
+        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [goldLight, gold]),
+        boxShadow: [BoxShadow(color: gold.withValues(alpha: .17), blurRadius: 24, offset: const Offset(0, 9))],
+      ),
+      child: Icon(Icons.content_cut_rounded, color: ink, size: compact ? 27 : 34),
+    ),
+    const SizedBox(height: 12),
+    const Text('BERBERİM', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900, letterSpacing: 3.2)),
+    const SizedBox(height: 3),
+    const Text('BAKIMININ YENİ RANDEVU NOKTASI', style: TextStyle(color: muted, fontSize: 9, letterSpacing: 1.25, fontWeight: FontWeight.w700)),
+  ]);
+}
+
+class StatusTag extends StatelessWidget {
+  const StatusTag(this.label, {super.key, this.color = gold});
+  final String label;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+    decoration: BoxDecoration(color: color.withValues(alpha: .12), borderRadius: BorderRadius.circular(30), border: Border.all(color: color.withValues(alpha: .25))),
+    child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800)),
+  );
+}
+
+class EmptyStateView extends StatelessWidget {
+  const EmptyStateView({super.key, required this.icon, required this.title, required this.subtitle});
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 22),
+    child: Column(children: [
+      Container(width: 62, height: 62, decoration: BoxDecoration(color: gold.withValues(alpha: .10), borderRadius: BorderRadius.circular(20)), child: Icon(icon, color: gold, size: 29)),
+      const SizedBox(height: 15),
+      Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+      const SizedBox(height: 6),
+      Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(color: muted, height: 1.45, fontSize: 13)),
+    ]),
+  );
+}
+
+class FieldLabel extends StatelessWidget {
+  const FieldLabel(this.label, {super.key});
+  final String label;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(label, style: const TextStyle(fontSize: 12, color: muted, fontWeight: FontWeight.w700)),
+  );
+}
+
 class SetupPage extends StatelessWidget {
   const SetupPage({super.key});
   @override Widget build(BuildContext context) => Scaffold(
