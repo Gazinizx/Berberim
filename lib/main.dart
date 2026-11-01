@@ -152,12 +152,27 @@ class _BarberPageState extends State<BarberPage>{
  ]));
 }
 
+Widget notificationAction(BuildContext context)=>IconButton(
+ onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const NotificationsPage())),
+ icon:const Icon(Icons.notifications_none));
+
+class NotificationsPage extends StatefulWidget { const NotificationsPage({super.key}); @override State<NotificationsPage> createState()=>_NotificationsPageState(); }
+class _NotificationsPageState extends State<NotificationsPage>{
+ Future<List<Map<String,dynamic>>> load()=>sb.from('notifications').select().eq('user_id',uid).order('created_at',ascending:false).limit(100);
+ @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('Bildirimler')),body:FutureBuilder<List<Map<String,dynamic>>>(future:load(),builder:(c,s){
+ if(s.connectionState!=ConnectionState.done)return const LoadingPage();
+ if(s.hasError)return ErrorPage(message:err(s.error!));
+ final rows=s.data??[];
+ if(rows.isEmpty)return const Center(child:Text('Henüz bildirimin yok.'));
+ return ListView(children:rows.map((n)=>ListTile(leading:Icon(n['read_at']==null?Icons.notifications_active:Icons.notifications_none,color:n['read_at']==null?gold:Colors.white38),title:Text(n['title']),subtitle:Text('${n['body']}\\n${n['created_at']}'),isThreeLine:true,onTap:()async{if(n['read_at']==null){await sb.from('notifications').update({'read_at':DateTime.now().toUtc().toIso8601String()}).eq('id',n['id']);setState((){});}})).toList());
+ }));}
+
 class CustomerPage extends StatefulWidget { const CustomerPage({super.key}); @override State<CustomerPage> createState()=>_CustomerPageState(); }
 class _CustomerPageState extends State<CustomerPage>{
  String? businessId,employeeId,serviceId; String selectedTime='10:00'; DateTime day=DateTime.now().add(const Duration(days:1)); bool busy=false;
  String date(DateTime d)=>'${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
  Future<void> book()async{if(businessId==null||employeeId==null||serviceId==null)return;setState(()=>busy=true);try{final parts=selectedTime.split(':').map(int.parse).toList(); final local=DateTime(day.year,day.month,day.day,parts[0],parts[1]);await sb.rpc('book_appointment',params:{'p_business_id':businessId,'p_employee_id':employeeId,'p_service_id':serviceId,'p_starts_at':local.toUtc().toIso8601String()});toast(context,'Randevun onaylandı');}catch(e){toast(context,err(e));}if(mounted)setState(()=>busy=false);}
- @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('Berberim'),actions:[IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout))]),body:FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('business_memberships').select('business_id, businesses(id,name)').eq('customer_id',uid),builder:(c,m){if(!m.hasData)return const LoadingPage();final businesses=(m.data??[]).map((x)=>x['businesses']).whereType<Map<String,dynamic>>().toList();return ListView(padding:const EdgeInsets.all(16),children:[
+ @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('Berberim'),actions:[notificationAction(context),IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout))]),body:FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('business_memberships').select('business_id, businesses(id,name)').eq('customer_id',uid),builder:(c,m){if(!m.hasData)return const LoadingPage();final businesses=(m.data??[]).map((x)=>x['businesses']).whereType<Map<String,dynamic>>().toList();return ListView(padding:const EdgeInsets.all(16),children:[
  const Text('Randevu oluştur',style:TextStyle(fontSize:25,fontWeight:FontWeight.w800)),const SizedBox(height:12),
  if(businesses.isEmpty)const Text('Henüz bir işletmeye katılmadın. Profilinden işletme koduyla katılabilirsin.'),
  DropdownButtonFormField<String>(value:businessId,decoration:const InputDecoration(labelText:'İşletme seç'),items:businesses.map((b)=>DropdownMenuItem(value:b['id'] as String,child:Text(b['name']))).toList(),onChanged:(v)=>setState(()=>businessId=v)),
