@@ -36,7 +36,7 @@ class Appointment {
     required this.date, required this.time, required this.price, this.done = false});
   final String id;
   String name, phone, service, date, time;
-  final int price;
+  int price;
   bool done;
   Map<String, dynamic> toJson() => {'id':id,'name':name,'phone':phone,'service':service,
     'date':date,'time':time,'price':price,'done':done};
@@ -66,6 +66,8 @@ class _DashboardState extends State<Dashboard> {
     if (raw != null) {
       try { appointments.addAll((jsonDecode(raw) as List).map((e)=>Appointment.fromJson(Map<String,dynamic>.from(e)))); } catch (_) {}
     }
+    final savedPrices = p.getString('prices_v1');
+    if (savedPrices != null) { try { prices.addAll(Map<String, int>.from(jsonDecode(savedPrices).map((k,v)=>MapEntry(k, (v as num).toInt())))); } catch (_) {} }
     final sr = p.getStringList('services_v1');
     if (sr != null && sr.isNotEmpty) {
       services..clear()..addAll(sr);
@@ -79,6 +81,7 @@ class _DashboardState extends State<Dashboard> {
     final p = await prefsFuture;
     await p.setString('appointments_v1', jsonEncode(appointments.map((e)=>e.toJson()).toList()));
     await p.setStringList('services_v1', services);
+    await p.setString('prices_v1', jsonEncode(prices));
     await p.setString('business_name', businessName);
     await p.setString('owner_name', ownerName);
   }
@@ -287,7 +290,7 @@ class _DashboardState extends State<Dashboard> {
     final c=TextEditingController(text:'${prices[s]??200}');
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:Text('$s ücretini düzenle'),content:TextField(controller:c,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Yeni ücret (TL)')),
       actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('İptal')),TextButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Kaydet'))]));
-    if(ok==true){setState(()=>prices[s]=int.tryParse(c.text)??prices[s]??200);await _save();}
+    if(ok==true){setState(()=>prices[s]=int.tryParse(c.text)??prices[s]??200);for(final a in appointments){if(a.service==s)a.price=prices[s]!;}await _save();}
   }
   Future<void> _deleteService(String s) async {
     if(appointments.any((a)=>a.service==s)){_toast('Bu hizmete bağlı randevular var; önce randevuları düzenle.');return;}
