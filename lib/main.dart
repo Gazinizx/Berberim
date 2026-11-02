@@ -186,6 +186,15 @@ void toast(BuildContext context, String message) {
     ..showSnackBar(SnackBar(content: Text(message)));
 }
 
+String appointmentStatusLabel(Object? status) => switch (status) {
+  'pending' => 'Randevu verildi',
+  'confirmed' => 'Onaylandı',
+  'completed' => 'Tamamlandı',
+  'cancelled' => 'İptal edildi',
+  'no_show' => 'Gelmedi',
+  _ => (status ?? 'Bilinmiyor').toString(),
+};
+
 class AppPanel extends StatelessWidget {
   const AppPanel({super.key, required this.child, this.padding = const EdgeInsets.all(18), this.margin});
   final Widget child;
@@ -326,36 +335,68 @@ class SetupPage extends StatelessWidget {
   );
 }
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
-  @override Widget build(BuildContext context) => StreamBuilder<AuthState>(
+  @override State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  String? _loadedUid;
+  Future<Map<String,dynamic>?>? _profileFuture;
+  Future<List<Map<String,dynamic>>>? _businessesFuture;
+
+  Future<Map<String,dynamic>?> _loadProfile(String userId) =>
+      sb.from('profiles').select().eq('id', userId).maybeSingle()
+          .timeout(const Duration(seconds: 12));
+
+  Future<List<Map<String,dynamic>>> _loadBusinesses(String userId) =>
+      sb.from('businesses').select().eq('owner_id', userId).order('created_at')
+          .timeout(const Duration(seconds: 12));
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder<AuthState>(
     stream: sb.auth.onAuthStateChange,
     builder: (context, _) {
-      if (sb.auth.currentUser == null) return const LoginPage();
+      final user = sb.auth.currentUser;
+      if (user == null) {
+        _loadedUid = null;
+        _profileFuture = null;
+        _businessesFuture = null;
+        return const LoginPage();
+      }
+      if (_loadedUid != user.id) {
+        _loadedUid = user.id;
+        _profileFuture = _loadProfile(user.id);
+        _businessesFuture = null;
+      }
       return FutureBuilder<Map<String,dynamic>?>(
-        future: sb.from('profiles').select().eq('id', uid).maybeSingle(),
+        future: _profileFuture,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) return const LoadingPage();
-          if (snap.hasError) return ErrorPage(message: err(snap.error!));
+          if (snap.hasError) return ErrorPage(message: 'Profil yüklenemedi: ${err(snap.error!)}');
           if (snap.data == null) return const ProfilePage();
           final p = snap.data!;
           if (p['is_blocked'] == true) return const BlockedPage();
           if (p['is_admin'] == true) return const AdminPage();
+          _businessesFuture ??= _loadBusinesses(user.id);
           return FutureBuilder<List<Map<String,dynamic>>>(
-            future: sb.from('businesses').select().eq('owner_id', uid).order('created_at'),
+            future: _businessesFuture,
             builder: (context, owned) {
               if (owned.connectionState != ConnectionState.done) return const LoadingPage();
-              if (owned.hasError) return ErrorPage(message: err(owned.error!));
+              if (owned.hasError) return ErrorPage(message: 'İşletme bilgisi yüklenemedi: ${err(owned.error!)}');
               if ((owned.data ?? []).isNotEmpty) {
-                final active = (owned.data!).where((b)=>b['status']=='active').toList();
+                final active = owned.data!.where((b) => b['status'] == 'active').toList();
                 if (active.isEmpty) return PendingPage(business: owned.data!.first);
                 return BarberPage(business: active.first);
               }
-              if (p['account_type']=='business_owner') return const ProfilePage();
+              if (p['account_type'] == 'business_owner') return const ProfilePage();
               return const CustomerPage();
-            });
-        });
-    });
+            },
+          );
+        },
+      );
+    },
+  );
 }
 
 class BlockedPage extends StatelessWidget {
@@ -596,9 +637,19 @@ class _AdminPageState extends State<AdminPage>{
 class BarberPage extends StatefulWidget { const BarberPage({super.key,required this.business}); final Map<String,dynamic> business; @override State<BarberPage> createState()=>_BarberPageState(); }
 class _BarberPageState extends State<BarberPage>{
  final service=TextEditingController(),price=TextEditingController(),duration=TextEditingController(text:'30'),employee=TextEditingController(),open=TextEditingController(text:'09:00'),close=TextEditingController(text:'20:00'),breakStart=TextEditingController(text:'13:00'),breakEnd=TextEditingController(text:'14:00');
- bool busy=false; Future<void> refresh()async{if(mounted)setState((){});}
+ bool busy=false;
+ late Future<List<Map<String,dynamic>>> _employeesFuture;
+ late Future<List<Map<String,dynamic>>> _servicesFuture;
+ late Future<List<Map<String,dynamic>>> _appointmentsFuture;
+ @override void initState(){super.initState();_reloadFutures();}
+ void _reloadFutures(){
+  _employeesFuture=sb.from('employees').select('*, employee_invites(invite_code,claimed_at,expires_at)').eq('business_id',widget.business['id']).timeout(const Duration(seconds:12));
+  _servicesFuture=sb.from('services').select().eq('business_id',widget.business['id']).timeout(const Duration(seconds:12));
+  _appointmentsFuture=sb.from('appointments').select('*, services(name), employees(display_name), profiles(full_name)').eq('business_id',widget.business['id']).order('starts_at').limit(100).timeout(const Duration(seconds:12));
+ }
+ Future<void> refresh()async{if(mounted)setState(_reloadFutures);}
  Future<void> addService()async{try{await sb.from('services').insert({'business_id':widget.business['id'],'name':service.text.trim(),'price':double.parse(price.text),'duration_minutes':int.parse(duration.text)});service.clear();price.clear();refresh();}catch(e){toast(context,err(e));}}
- Future<void> addEmployee()async{try{await sb.from('employees').insert({'business_id':widget.business['id'],'display_name':employee.text.trim()});employee.clear();refresh();}catch(e){toast(context,err(e));}}
+ Future<void> addEmployee()async{try{final name=employee.text.trim();if(name.isEmpty)throw Exception('Çalışan adı boş olamaz');final code=await sb.rpc('create_employee_invite',params:{'p_display_name':name});employee.clear();await refresh();if(mounted)toast(context,'Çalışan eklendi. Davet kodu: $code');}catch(e){if(mounted)toast(context,err(e));}}
  Future<void> saveHours()async{try{for(var d=0;d<7;d++){await sb.from('business_hours').upsert({'business_id':widget.business['id'],'weekday':d,'opens_at':open.text,'closes_at':close.text,'is_closed':false},onConflict:'business_id,weekday');}toast(context,'Çalışma saatleri kaydedildi');}catch(e){toast(context,err(e));}}
  Future<void> saveBreaks()async{try{final a=breakStart.text.trim(),b=breakEnd.text.trim();if(a.compareTo(b)>=0)throw Exception('Mola bitişi başlangıçtan sonra olmalı');await sb.from('business_breaks').delete().eq('business_id',widget.business['id']);for(var d=1;d<7;d++){await sb.from('business_breaks').insert({'business_id':widget.business['id'],'weekday':d,'starts_at':a,'ends_at':b});}toast(context,'Mola saatleri kaydedildi');}catch(e){toast(context,err(e));}}
  Widget groupTitle(String title,String caption,IconData icon)=>Padding(padding:const EdgeInsets.only(bottom:14),child:Row(children:[
@@ -632,11 +683,11 @@ class _BarberPageState extends State<BarberPage>{
     TextField(controller:employee,decoration:const InputDecoration(hintText:'Çalışan adı',prefixIcon:Icon(Icons.person_add_alt_1_rounded))),
     const SizedBox(height:12),OutlinedButton.icon(onPressed:addEmployee,icon:const Icon(Icons.add_rounded),label:const Text('Çalışan ekle')),
     const Divider(height:28),
-    FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('employees').select().eq('business_id',widget.business['id']),builder:(c,s){
+    FutureBuilder<List<Map<String,dynamic>>>(future:_employeesFuture,builder:(c,s){
      if(s.connectionState!=ConnectionState.done)return const LinearProgressIndicator();
      if(s.hasError)return Text(err(s.error!),style:const TextStyle(color:Colors.redAccent));
      if((s.data??[]).isEmpty)return const Text('Henüz çalışan eklenmedi.',style:TextStyle(color:muted,fontSize:12));
-     return Column(children:(s.data??[]).map((e)=>ListTile(contentPadding:EdgeInsets.zero,leading:const CircleAvatar(backgroundColor:ink,child:Icon(Icons.person_outline,color:gold)),title:Text(e['display_name']??'Çalışan',style:const TextStyle(fontWeight:FontWeight.w700)),trailing:StatusTag(e['is_active']==true?'AKTİF':'PASİF',color:e['is_active']==true?Colors.greenAccent:muted))).toList());
+     return Column(children:(s.data??[]).map((e)=>ListTile(contentPadding:EdgeInsets.zero,leading:const CircleAvatar(backgroundColor:ink,child:Icon(Icons.person_outline,color:gold)),title:Text(e['display_name']??'Çalışan',style:const TextStyle(fontWeight:FontWeight.w700)),subtitle:Text(((e['employee_invites'] as List?)??[]).whereType<Map>().where((i)=>i['claimed_at']==null).map((i)=>'Davet kodu: ${i['invite_code']}').join(' • ').isEmpty?'Davet kodu kullanılabilir durumda değil':((e['employee_invites'] as List?)??[]).whereType<Map>().where((i)=>i['claimed_at']==null).map((i)=>'Davet kodu: ${i['invite_code']}').join(' • '),style:const TextStyle(color:gold,fontSize:11)),trailing:StatusTag(e['is_active']==true?'AKTİF':'PASİF',color:e['is_active']==true?Colors.greenAccent:muted))).toList());
     }),
    ])),
    const SizedBox(height:14),
@@ -647,7 +698,7 @@ class _BarberPageState extends State<BarberPage>{
     Row(children:[Expanded(child:TextField(controller:price,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Ücret (TL)'))),const SizedBox(width:12),Expanded(child:TextField(controller:duration,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Süre (dk)')))]),
     const SizedBox(height:12),ElevatedButton.icon(onPressed:addService,icon:const Icon(Icons.add_rounded),label:const Text('Hizmet ekle')),
     const Divider(height:28),
-    FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('services').select().eq('business_id',widget.business['id']),builder:(c,s){
+    FutureBuilder<List<Map<String,dynamic>>>(future:_servicesFuture,builder:(c,s){
      if(s.connectionState!=ConnectionState.done)return const LinearProgressIndicator();
      if(s.hasError)return Text(err(s.error!),style:const TextStyle(color:Colors.redAccent));
      if((s.data??[]).isEmpty)return const Text('Henüz hizmet eklenmedi.',style:TextStyle(color:muted,fontSize:12));
@@ -657,11 +708,14 @@ class _BarberPageState extends State<BarberPage>{
    const SizedBox(height:14),
    AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
     groupTitle('Randevular','Gelen randevuları görüntüle ve yönet',Icons.event_note_rounded),
-    FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('appointments').select('*, services(name), employees(display_name)').eq('business_id',widget.business['id']).order('starts_at'),builder:(c,s){
+    FutureBuilder<List<Map<String,dynamic>>>(future:_appointmentsFuture,builder:(c,s){
      if(s.connectionState!=ConnectionState.done)return const LinearProgressIndicator();
      if(s.hasError)return Text(err(s.error!),style:const TextStyle(color:Colors.redAccent));
      if((s.data??[]).isEmpty)return const EmptyStateView(icon:Icons.event_busy_rounded,title:'Randevu bulunmuyor',subtitle:'Müşteriler randevu aldığında burada listelenecek.');
-     return Column(children:(s.data??[]).map((a)=>ListTile(contentPadding:EdgeInsets.zero,leading:const CircleAvatar(backgroundColor:ink,child:Icon(Icons.event_available_rounded,color:gold)),title:Text(a['services']?['name']??'Randevu',style:const TextStyle(fontWeight:FontWeight.w700)),subtitle:Text('${a['starts_at']} • ${a['employees']?['display_name']??''}',style:const TextStyle(color:muted,fontSize:11)),trailing:a['status']=='confirmed'?IconButton(tooltip:'İptal et',icon:const Icon(Icons.cancel_outlined,color:Colors.redAccent),onPressed:()async{await sb.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});refresh();}):StatusTag((a['status']??'').toString().toUpperCase()))).toList());
+     return Column(children:(s.data??[]).map((a)=>ListTile(contentPadding:EdgeInsets.zero,leading:const CircleAvatar(backgroundColor:ink,child:Icon(Icons.event_available_rounded,color:gold)),title:Text(a['services']?['name']??'Randevu',style:const TextStyle(fontWeight:FontWeight.w700)),subtitle:Text('${a['starts_at']} • ${a['employees']?['display_name']??''}',style:const TextStyle(color:muted,fontSize:11)),trailing:(a['status']=='pending'||a['status']=='confirmed')?Wrap(spacing:0,children:[
+      IconButton(tooltip:'Tamamlandı olarak işaretle',icon:const Icon(Icons.check_circle_outline_rounded,color:Colors.greenAccent),onPressed:()async{try{await sb.rpc('update_appointment_status',params:{'p_appointment_id':a['id'],'p_status':'completed'});await refresh();if(mounted)toast(context,'Randevu tamamlandı olarak işaretlendi');}catch(e){if(mounted)toast(context,err(e));}}),
+      IconButton(tooltip:'İptal et',icon:const Icon(Icons.cancel_outlined,color:Colors.redAccent),onPressed:()async{try{await sb.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});await refresh();}catch(e){if(mounted)toast(context,err(e));}}),
+     ]):StatusTag(appointmentStatusLabel(a['status']),color:a['status']=='completed'?Colors.greenAccent:muted))).toList());
     }),
    ])),
   ]),
@@ -703,7 +757,7 @@ class _CustomerPageState extends State<CustomerPage>{
  final joinCode=TextEditingController(); String? businessId,employeeId,serviceId; String selectedTime='10:00'; DateTime day=DateTime.now().add(const Duration(days:1)); bool busy=false;
  Future<void> joinBusiness()async{try{await sb.rpc('join_business_by_code',params:{'p_code':joinCode.text.trim().toUpperCase()});joinCode.clear();setState((){});toast(context,'İşletmeye katıldın');}catch(e){toast(context,err(e));}}
  String date(DateTime d)=>'${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
- Future<void> book()async{if(businessId==null||employeeId==null||serviceId==null)return;setState(()=>busy=true);try{final parts=selectedTime.split(':').map(int.parse).toList(); final local=DateTime(day.year,day.month,day.day,parts[0],parts[1]);await sb.rpc('book_appointment',params:{'p_business_id':businessId,'p_employee_id':employeeId,'p_service_id':serviceId,'p_starts_at':local.toUtc().toIso8601String()});toast(context,'Randevun onaylandı');}catch(e){toast(context,err(e));}if(mounted)setState(()=>busy=false);}
+ Future<void> book()async{if(businessId==null||employeeId==null||serviceId==null)return;setState(()=>busy=true);try{final parts=selectedTime.split(':').map(int.parse).toList(); final local=DateTime(day.year,day.month,day.day,parts[0],parts[1]);await sb.rpc('book_appointment',params:{'p_business_id':businessId,'p_employee_id':employeeId,'p_service_id':serviceId,'p_starts_at':local.toUtc().toIso8601String()});toast(context,'Randevun oluşturuldu');}catch(e){toast(context,err(e));}if(mounted)setState(()=>busy=false);}
  Widget selectField(String label,Widget child)=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[FieldLabel(label),child]);
  @override Widget build(BuildContext c)=>Scaffold(
   appBar:AppBar(title:const Text('Berberim'),actions:[notificationAction(context),IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),
@@ -757,7 +811,7 @@ class _CustomerPageState extends State<CustomerPage>{
        const SizedBox(height:4),Text(a['businesses']?['name']??'',style:const TextStyle(color:muted,fontSize:12)),
        Text('${a['starts_at']} • ${a['employees']?['display_name']??''}',style:const TextStyle(color:gold,fontSize:10,fontWeight:FontWeight.w600)),
       ])),
-      if(a['status']=='confirmed')IconButton(tooltip:'Randevuyu iptal et',icon:const Icon(Icons.cancel_outlined,color:Colors.redAccent),onPressed:()async{await sb.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});setState((){});}) else StatusTag((a['status']??'').toString().toUpperCase()),
+      if(a['status']=='pending'||a['status']=='confirmed')IconButton(tooltip:'Randevuyu iptal et',icon:const Icon(Icons.cancel_outlined,color:Colors.redAccent),onPressed:()async{try{await sb.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});if(mounted)setState((){});}catch(e){if(mounted)toast(context,err(e));}}) else StatusTag(appointmentStatusLabel(a['status']),color:a['status']=='completed'?Colors.greenAccent:muted),
      ]))).toList());
     }),
    ]);
