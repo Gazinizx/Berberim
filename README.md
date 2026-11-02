@@ -1,24 +1,27 @@
 # Berberim
 
-Fresh Flutter application for a multi-shop barber appointment service.
+Berberim, birden fazla berber işletmesini destekleyen Flutter tabanlı Android ve iOS randevu uygulamasıdır. Uygulamanın backend'i **Supabase** kullanır; Firebase/Firestore kullanılmaz.
 
-## Implemented in source
-- Email/password sign-in and account creation.
-- Customer registration using a shop code.
-- Barber application and administrator review flow.
-- Per-shop service management and customer appointment lists.
-- Callable backend booking transaction with a unique slot lock.
-- Cancellation and FCM notification functions.
-- Firestore rules that deny client-side writes to profiles, applications, bookings, and slot locks.
-- GitHub Actions Android release APK and unsigned iOS app builds.
+## Özellikler
+- E-posta ve şifre ile kayıt/giriş
+- İşletme başvurusu ve yönetici onayı
+- İşletme katılım kodu ile müşteri bağlantısı
+- İşletme, çalışan, hizmet ve çalışma saatleri yönetimi
+- Çalışan davet kodları
+- Randevu oluşturma, iptal etme ve tamamlandı durumuna geçirme
+- Çalışan ve işletme için randevu listeleri
+- Supabase RLS politikaları ve veritabanı fonksiyonları
 
-## Required deployment configuration
-This repository intentionally does not contain Firebase project credentials.
-Add these GitHub Actions repository secrets to activate the APK: FIREBASE_API_KEY, FIREBASE_APP_ID, FIREBASE_MESSAGING_SENDER_ID, FIREBASE_PROJECT_ID, and optionally FIREBASE_STORAGE_BUCKET. Without them the APK intentionally opens a setup screen instead of pretending a live backend exists.
-Deploy Cloud Functions and Firestore rules with a Firebase project:
-`firebase deploy --only functions,firestore:rules`
+## Android derlemesi
+GitHub Actions içindeki **Build Android APK** iş akışı, Supabase bağlantı değişkenlerini derleme sırasında tanımlar ve APK dosyasını artifact olarak yükler. APK'yı almak için:
+1. GitHub deposunda **Actions** sekmesini aç.
+2. En son **Build Android APK** çalışmasını seç.
+3. Çalışma başarıyla tamamlandığında **Artifacts** bölümünden `berberim-supabase-release-apk` dosyasını indir.
 
-During Functions deployment, set the Firebase parameter ADMIN_EMAIL to the administrator's exact Firebase Auth email. Create an account with that email in the app, then tap "Yönetici hesabını etkinleştir". The callable verifies the configured email server-side and only initializes an account that has no profile. Never grant admin role directly from the client.
+## iOS
+iOS derleme iş akışı ayrı tutulur. İmzalı IPA/TestFlight dağıtımı için Apple imzalama sertifikası ve provisioning profile gerekir.
 
-## Build
-GitHub Actions -> **Build Android APK** for an APK artifact or **Build iOS App (unsigned)** for the iOS app bundle. A signed IPA for TestFlight/App Store still requires the Apple signing certificate, provisioning profile, and matching iOS Firebase app configuration.
+## Güvenlik
+- İstemci tarafında yönetici rolü verilemez.
+- Erişim, Supabase Auth ve Row Level Security kurallarıyla denetlenir.
+- Sunucu tarafı gizli anahtarlar uygulamaya veya depoya eklenmemelidir.
