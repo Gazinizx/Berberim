@@ -77,7 +77,7 @@ jobs:
       - name: Run tests
         run: flutter test
       - name: Build release APK
-        run: flutter build apk --release --dart-define=SUPABASE_URL=https://tzwlbwhokvnjekwwpnsr.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_dkvrMB41cXEeH2dBdKAwxA_MFWTZyW0
+        run: flutter build apk --release --dart-define=SUPABASE_URL=https://esnrbyegnxykvsghsjjq.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_cxdhKUO8dybl-RrK-WqK6w_f6nVDz_v
       - uses: actions/upload-artifact@v4
         with:
           name: berberim-supabase-release-apk
