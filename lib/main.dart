@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const gold = Color(0xFFD6A64B);
-const goldLight = Color(0xFFF0D18A);
-const ink = Color(0xFF090A0C);
-const panel = Color(0xFF14161A);
-const ivory = Color(0xFFF5F2EB);
-const muted = Color(0xFF9298A3);
-const border = Color(0xFF2B2F36);
+const gold = Color(0xFFD8B36A);
+const goldLight = Color(0xFFF1D9A5);
+const ink = Color(0xFF0B0C0F);
+const panel = Color(0xFF17191E);
+const ivory = Color(0xFFF7F4ED);
+const muted = Color(0xFFA0A3AA);
+const border = Color(0xFF30333A);
+const panelRaised = Color(0xFF1D2026);
+const goldShadow = Color(0x26D8B36A);
 final sb = Supabase.instance.client;
 String get uid => sb.auth.currentUser!.id;
 String err(Object e) => e.toString().replaceFirst('Exception: ', '').replaceFirst('PostgrestException(message: ', '');
@@ -45,9 +47,19 @@ class BerberimApp extends StatelessWidget {
         error: Color(0xFFFF6B70),
         onError: Color(0xFF25090B),
       ),
+      visualDensity: VisualDensity.standard,
+      splashFactory: InkSparkle.splashFactory,
       textTheme: ThemeData.dark(useMaterial3: true).textTheme.apply(
         bodyColor: ivory,
         displayColor: ivory,
+      ).copyWith(
+        headlineLarge: const TextStyle(fontSize: 32, height: 1.08, fontWeight: FontWeight.w800, letterSpacing: -1.0, color: ivory),
+        headlineMedium: const TextStyle(fontSize: 27, height: 1.12, fontWeight: FontWeight.w800, letterSpacing: -.7, color: ivory),
+        titleLarge: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -.35, color: ivory),
+        titleMedium: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: ivory),
+        bodyLarge: const TextStyle(fontSize: 15, height: 1.5, color: ivory),
+        bodyMedium: const TextStyle(fontSize: 13, height: 1.45, color: ivory),
+        labelLarge: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: .15),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: ink,
@@ -56,9 +68,9 @@ class BerberimApp extends StatelessWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         titleTextStyle: TextStyle(
-          fontSize: 21,
+          fontSize: 20,
           fontWeight: FontWeight.w800,
-          letterSpacing: -0.45,
+          letterSpacing: -0.55,
           color: ivory,
         ),
         iconTheme: IconThemeData(color: ivory, size: 23),
@@ -69,25 +81,27 @@ class BerberimApp extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 8),
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(24),
           side: const BorderSide(color: border, width: 1),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: panel,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-        labelStyle: const TextStyle(color: muted, fontWeight: FontWeight.w500),
-        hintStyle: const TextStyle(color: muted),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 19),
+        labelStyle: const TextStyle(color: muted, fontWeight: FontWeight.w600, fontSize: 13),
+        hintStyle: const TextStyle(color: Color(0xFF777D87), fontSize: 13),
+        helperStyle: const TextStyle(color: muted, fontSize: 11),
+        errorStyle: const TextStyle(color: Color(0xFFFF7D82), fontSize: 11, fontWeight: FontWeight.w600),
         prefixIconColor: gold,
         suffixIconColor: muted,
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(17),
-          borderSide: const BorderSide(color: border),
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: border, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(17),
-          borderSide: const BorderSide(color: gold, width: 1.6),
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: gold, width: 1.7),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(17),
@@ -102,19 +116,20 @@ class BerberimApp extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: gold,
           foregroundColor: const Color(0xFF17130B),
-          minimumSize: const Size.fromHeight(54),
-          elevation: 0,
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
+          minimumSize: const Size.fromHeight(56),
+          elevation: 1,
+          shadowColor: goldShadow,
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: .15),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: ivory,
-          minimumSize: const Size.fromHeight(50),
-          side: const BorderSide(color: border),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
+          minimumSize: const Size.fromHeight(52),
+          side: const BorderSide(color: border, width: 1.2),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -128,9 +143,10 @@ class BerberimApp extends StatelessWidget {
         backgroundColor: panel,
         indicatorColor: const Color(0x33D6A64B),
         elevation: 0,
-        height: 72,
+        height: 76,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         labelTextStyle: const WidgetStatePropertyAll(
-          TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: .1),
         ),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
@@ -150,12 +166,26 @@ class BerberimApp extends StatelessWidget {
         todayForegroundColor: const WidgetStatePropertyAll(gold),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
-      dividerTheme: const DividerThemeData(color: border, thickness: 1, space: 1),
-      snackBarTheme: SnackBarThemeData(
-        backgroundColor: const Color(0xFF24272D),
-        contentTextStyle: const TextStyle(color: ivory),
-        behavior: SnackBarBehavior.floating,
+      dividerTheme: const DividerThemeData(color: border, thickness: 1, space: 1, indent: 2, endIndent: 2),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) => states.contains(WidgetState.selected) ? ink : muted),
+        trackColor: WidgetStateProperty.resolveWith((states) => states.contains(WidgetState.selected) ? gold : panelRaised),
+        trackOutlineColor: WidgetStatePropertyAll(border),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: panelRaised,
+        selectedColor: gold.withValues(alpha: .18),
+        side: const BorderSide(color: border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        labelStyle: const TextStyle(color: ivory, fontSize: 12, fontWeight: FontWeight.w700),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: panelRaised,
+        contentTextStyle: const TextStyle(color: ivory, fontWeight: FontWeight.w600, fontSize: 13),
+        behavior: SnackBarBehavior.floating,
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: border)),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: gold),
       iconTheme: const IconThemeData(color: ivory, size: 22),
@@ -205,9 +235,10 @@ class AppPanel extends StatelessWidget {
     margin: margin,
     padding: padding,
     decoration: BoxDecoration(
-      color: panel,
-      borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: border),
+      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1B1E24), Color(0xFF14161A)]),
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: border.withValues(alpha: .9)),
+      boxShadow: const [BoxShadow(color: Color(0x16000000), blurRadius: 22, offset: Offset(0, 10))],
     ),
     child: child,
   );
@@ -234,7 +265,7 @@ class ScreenHeading extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 5),
           child: Text(eyebrow!.toUpperCase(), style: const TextStyle(color: gold, fontSize: 10, letterSpacing: 1.7, fontWeight: FontWeight.w800)),
         ),
-        Text(title, style: const TextStyle(fontSize: 25, height: 1.12, fontWeight: FontWeight.w800, letterSpacing: -.65)),
+        Text(title, style: const TextStyle(fontSize: 27, height: 1.08, fontWeight: FontWeight.w800, letterSpacing: -.85)),
         const SizedBox(height: 7),
         Text(subtitle, style: const TextStyle(color: muted, fontSize: 13, height: 1.45)),
       ])),
