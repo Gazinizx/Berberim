@@ -15,7 +15,7 @@ String err(Object e) => e.toString().replaceFirst('Exception: ', '').replaceFirs
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   const url = String.fromEnvironment('SUPABASE_URL');
-  const key = String.fromEnvironment('SUPABASE_ANON_KEY');
+  const key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
   if (url.isNotEmpty && key.isNotEmpty) {
     await Supabase.initialize(url: url, publishableKey: key);
   }
@@ -173,7 +173,7 @@ class ConfigGate extends StatelessWidget {
   const ConfigGate({super.key});
   @override Widget build(BuildContext context) {
     const url = String.fromEnvironment('SUPABASE_URL');
-    const key = String.fromEnvironment('SUPABASE_ANON_KEY');
+    const key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
     if (url.isEmpty || key.isEmpty) return const SetupPage();
     return const AuthGate();
   }
