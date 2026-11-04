@@ -23,7 +23,8 @@ All public tables have Row Level Security enabled. Owner/customer/admin access i
 
 - `create_business_application`: atomically creates a pending business, its owner employee record, and seven default opening-hour rows.
 - `join_business_by_code`: joins an active business using its unique code.
-- `create_employee_invite`: creates an employee and a short-lived invite code for an active business owner.
+- `create_employee_invite`: creates an employee and a short-lived, business-scoped invite code for an active business owner.
+- `claim_employee_invite`: links a single-use, unexpired employee invite to the signed-in employee account; the employee then sees their own appointment dashboard.
 - `book_appointment`: validates membership, business status, employee, service, opening hours, breaks and time before inserting.
 - `cancel_appointment`: authorizes cancellation by the customer, assigned employee or business owner.
 - `update_appointment_status`: allows the business owner, assigned employee or admin to mark an appointment completed/no-show.
