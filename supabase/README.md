@@ -1,29 +1,36 @@
-# Supabase backend
+# Berberim Supabase backend
 
-Project: `tzwlbwhokvnjekwwpnsr` (Europe/Paris)
+Production project: `esnrbyegnxykvsghsjjq` (Frankfurt, `eu-central-1`).
 
-The live Supabase project has the following public tables, all protected by RLS:
+The Flutter app uses this project's Supabase URL and publishable key at build time. The publishable key is intended for client apps; authorization is enforced with RLS. Never place a service-role or secret key in Flutter or GitHub build arguments.
+
+## Public tables
 
 - `profiles`
 - `businesses`
 - `business_memberships`
 - `employees`
+- `employee_invites`
 - `services`
 - `business_hours`
 - `business_breaks`
 - `appointments`
 - `notifications`
 
-Important RPCs:
+All public tables have Row Level Security enabled. Owner/customer/admin access is scoped through RLS policies. Indexes cover the app's owner, customer, employee, business, date-ordering and notification lookups. A PostgreSQL GiST exclusion constraint prevents overlapping pending/confirmed appointments for the same employee.
 
-- `create_business_application`: atomically creates a pending business, owner employee record, and default opening hours.
-- `join_business_by_code`: joins an active business with its unique code.
-- `book_appointment`: validates membership, business status, employee, service, opening hours, breaks, and time before inserting.
-- `cancel_appointment`: authorizes cancellation by the customer, assigned employee, business owner, or admin.
+## App RPCs
+
+- `create_business_application`: atomically creates a pending business, its owner employee record, and seven default opening-hour rows.
+- `join_business_by_code`: joins an active business using its unique code.
+- `create_employee_invite`: creates an employee and a short-lived invite code for an active business owner.
+- `book_appointment`: validates membership, business status, employee, service, opening hours, breaks and time before inserting.
+- `cancel_appointment`: authorizes cancellation by the customer, assigned employee or business owner.
+- `update_appointment_status`: allows the business owner, assigned employee or admin to mark an appointment completed/no-show.
 - `review_business`: admin-only business approval/rejection/deactivation.
 - `admin_set_user_blocked`: admin-only user blocking.
 
-A PostgreSQL exclusion constraint prevents overlapping confirmed appointments for the same employee. Appointment insert/cancellation triggers write in-app notifications to the relevant accounts.
+Appointment insert/cancellation triggers create in-app notifications for the customer, owner and assigned employee where applicable.
 
 ## First administrator
 
@@ -35,11 +42,8 @@ set is_admin = true
 where id = (select id from auth.users where email = 'ADMIN_EMAIL_HERE');
 ```
 
-Never expose a service-role key in the Flutter app.
-
 ## Remaining deployment work
 
-- Configure APNs/FCM and a server-side push delivery worker.
+- Configure APNs/FCM and a server-side push delivery worker for device push notifications.
 - Configure a scheduled job for upcoming appointment reminders.
-- Run the Android and iOS GitHub Actions builds and resolve any compiler/analyzer findings.
 - Add Apple signing credentials before producing a TestFlight/App Store IPA.
