@@ -399,8 +399,6 @@ class _AuthGateState extends State<AuthGate> {
                   return const CustomerPage();
                 },
               );
-              /* account routing handled above */
-              return const CustomerPage();
             },
           );
         },
