@@ -19,6 +19,8 @@ The Flutter app uses this project's Supabase URL and publishable key at build ti
 
 All public tables have Row Level Security enabled. Owner/customer/admin access is scoped through RLS policies. Indexes cover the app's owner, customer, employee, business, date-ordering and notification lookups. A PostgreSQL GiST exclusion constraint prevents overlapping pending/confirmed appointments for the same employee.
 
+Privileged database implementations live in the non-exposed `private` schema. The public RPC endpoints are `SECURITY INVOKER` wrappers with execution limited to authenticated users; internal functions perform their own identity and ownership checks.
+
 ## App RPCs
 
 - `create_business_application`: atomically creates a pending business, its owner employee record, and seven default opening-hour rows.
