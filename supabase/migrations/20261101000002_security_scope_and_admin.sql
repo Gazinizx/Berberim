@@ -67,11 +67,8 @@ for select to authenticated using (
   or (select private.is_admin())
 );
 
-create or replace function public.create_business_application(p_name text, p_address text default null)
-returns uuid language sql security invoker set search_path = ''
-as $$ select public.create_business(p_name, p_address); $$;
-revoke all on function public.create_business_application(text,text) from public, anon;
-grant execute on function public.create_business_application(text,text) to authenticated;
+-- create_business_application is intentionally defined in the base schema:
+-- it atomically creates the business, its owner employee, and default opening hours.
 
 create or replace function public.review_business(p_business_id uuid, p_status text)
 returns void language plpgsql security definer set search_path = ''
@@ -84,7 +81,6 @@ begin
 end $$;
 revoke all on function public.review_business(uuid,text) from public, anon;
 grant execute on function public.review_business(uuid,text) to authenticated;
-
 
 create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
@@ -112,7 +108,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare v_owner uuid; v_employee uuid; v_service text; v_when text;
 begin
   select b.owner_id into v_owner from public.businesses b where b.id=new.business_id;
@@ -142,11 +138,11 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 drop trigger if exists appointments_notify_change on public.appointments;
 create trigger appointments_notify_change
 after insert or update on public.appointments
 for each row execute function private.notify_appointment_change();
 
 create index if not exists notifications_appointment_id_idx on public.notifications(appointment_id);
-
+create index if not exists notifications_user_created_idx on public.notifications(user_id, created_at desc);
