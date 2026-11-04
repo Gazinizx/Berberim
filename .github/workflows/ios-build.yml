@@ -20,20 +20,17 @@ jobs:
       - name: Configure Berberim auth callback
         run: |
           python3 - <<'PY'
+          import plistlib
           from pathlib import Path
           p = Path("ios/Runner/Info.plist")
-          s = p.read_text()
-          if "berberim" not in s:
-              block = """\n<key>CFBundleURLTypes</key>
-          <array>
-            <dict>
-              <key>CFBundleURLSchemes</key>
-              <array><string>berberim</string></array>
-            </dict>
-          </array>\n"""
-              s = s.replace("</dict>", block + "</dict>", 1)
-              p.write_text(s)
-          if "berberim" not in p.read_text():
+          data = plistlib.loads(p.read_bytes())
+          url_types = data.get("CFBundleURLTypes", [])
+          if not any("berberim" in item.get("CFBundleURLSchemes", []) for item in url_types):
+              url_types.append({"CFBundleURLSchemes": ["berberim"]})
+          data["CFBundleURLTypes"] = url_types
+          p.write_bytes(plistlib.dumps(data))
+          check = plistlib.loads(p.read_bytes())
+          if not any("berberim" in item.get("CFBundleURLSchemes", []) for item in check.get("CFBundleURLTypes", [])):
               raise SystemExit("Berberim auth callback URL scheme missing")
           print("iOS auth callback configured.")
           PY
