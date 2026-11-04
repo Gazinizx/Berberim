@@ -16,7 +16,7 @@ jobs:
           channel: stable
       - name: Prepare iOS platform
         run: |
-          if [ ! -d ios ]; then flutter create --platforms=ios --project-name=berberim .; fi
+          if [ ! -d ios ]; then flutter create --platforms=ios --org com.gazinizx --project-name=berberim .; fi
       - name: Configure Berberim auth callback
         run: |
           python3 - <<'PY'
@@ -24,6 +24,7 @@ jobs:
           from pathlib import Path
           p = Path("ios/Runner/Info.plist")
           data = plistlib.loads(p.read_bytes())
+          data["CFBundleDisplayName"] = "Berberim"
           url_types = data.get("CFBundleURLTypes", [])
           if not any("berberim" in item.get("CFBundleURLSchemes", []) for item in url_types):
               url_types.append({"CFBundleURLSchemes": ["berberim"]})
