@@ -24,6 +24,19 @@ jobs:
       - name: Prepare Android platform
         run: |
           if [ ! -d android ]; then flutter create --platforms=android --org com.gazinizx --project-name berberim .; fi
+      - name: Set Android app display name
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          s, count = re.subn(r'android:label="[^"]+"', 'android:label="Berberim"', s, count=1)
+          if count != 1:
+              raise SystemExit("Android app label was not found")
+          p.write_text(s)
+          print("Android app display name set to Berberim.")
+          PY
       - name: Configure email confirmation deep link
         run: |
           python3 - <<'PY'
