@@ -803,17 +803,25 @@ class _EmployeePageState extends State<EmployeePage>{
  ]));
 }
 
+class EmployeeInvitePage extends StatefulWidget { const EmployeeInvitePage({super.key}); @override State<EmployeeInvitePage> createState()=>_EmployeeInvitePageState(); }
+class _EmployeeInvitePageState extends State<EmployeeInvitePage>{
+ final code=TextEditingController(); bool busy=false;
+ Future<void> claim()async{if(code.text.trim().isEmpty){toast(context,'Davet kodunu gir');return;}setState(()=>busy=true);try{await sb.rpc('claim_employee_invite',params:{'p_code':code.text.trim().toUpperCase()});if(!mounted)return;toast(context,'Çalışan daveti hesabına tanımlandı');Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder:(_)=>const AuthGate()),(r)=>false);}catch(e){if(mounted)toast(context,err(e));}finally{if(mounted)setState(()=>busy=false);}}
+ @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('Çalışan daveti')),body:ListView(padding:const EdgeInsets.all(20),children:[const ScreenHeading(eyebrow:'PERSONEL KATILIMI',title:'Ekibine katıl',subtitle:'İşletme sahibinin sana özel oluşturduğu tek kullanımlık davet kodunu gir.',icon:Icons.badge_rounded),AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[const FieldLabel('ÇALIŞAN DAVET KODU'),TextField(controller:code,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(hintText:'DAVET KODUNU GİR',prefixIcon:Icon(Icons.key_rounded))),const SizedBox(height:18),SizedBox(height:52,child:ElevatedButton(onPressed:busy?null:claim,child:busy?const SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2,color:ink)):const Text('Daveti kabul et')))]))]));
+ }
+}
+
 class CustomerPage extends StatefulWidget { const CustomerPage({super.key}); @override State<CustomerPage> createState()=>_CustomerPageState(); }
 class _CustomerPageState extends State<CustomerPage>{
- final joinCode=TextEditingController(),employeeInviteCode=TextEditingController(); String? businessId,employeeId,serviceId; String selectedTime=''; DateTime day=DateTime.now().add(const Duration(days:1)); bool busy=false;
+ final joinCode=TextEditingController(); String? businessId,employeeId,serviceId; String selectedTime=''; DateTime day=DateTime.now().add(const Duration(days:1)); bool busy=false;
  Future<void> joinBusiness()async{try{await sb.rpc('join_business_by_code',params:{'p_code':joinCode.text.trim().toUpperCase()});joinCode.clear();setState((){});toast(context,'İşletmeye katıldın');}catch(e){toast(context,err(e));}}
- Future<void> claimEmployeeInvite()async{try{if(employeeInviteCode.text.trim().isEmpty)throw Exception('Davet kodunu gir');await sb.rpc('claim_employee_invite',params:{'p_code':employeeInviteCode.text.trim().toUpperCase()});if(!mounted)return;toast(context,'Çalışan daveti hesabına tanımlandı');Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder:(_)=>const AuthGate()),(r)=>false);}catch(e){if(mounted)toast(context,err(e));}}
+
  String date(DateTime d)=>'${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
  Future<List<String>> loadAvailableTimes()async{if(businessId==null||employeeId==null||serviceId==null)return [];final rows=await sb.rpc('get_available_slots',params:{'p_business_id':businessId,'p_employee_id':employeeId,'p_service_id':serviceId,'p_date':date(day)});return (rows as List).map((r)=>(r['slot_start']??'').toString().substring(0,5)).toList();}
  Future<void> book()async{if(businessId==null||employeeId==null||serviceId==null||selectedTime.isEmpty)return;setState(()=>busy=true);try{final parts=selectedTime.split(':').map(int.parse).toList(); final local=DateTime(day.year,day.month,day.day,parts[0],parts[1]);await sb.rpc('book_appointment',params:{'p_business_id':businessId,'p_employee_id':employeeId,'p_service_id':serviceId,'p_starts_at':local.toUtc().toIso8601String()});toast(context,'Randevun oluşturuldu');}catch(e){toast(context,err(e));}if(mounted)setState(()=>busy=false);}
  Widget selectField(String label,Widget child)=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[FieldLabel(label),child]);
  @override Widget build(BuildContext c)=>Scaffold(
-  appBar:AppBar(title:const Text('Berberim'),actions:[notificationAction(context),IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),
+  appBar:AppBar(title:const Text('Berberim'),actions:[notificationAction(context),PopupMenuButton<String>(tooltip:'Diğer işlemler',onSelected:(v){if(v=='employee_invite')Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const EmployeeInvitePage()));},itemBuilder:(_)=>const [PopupMenuItem(value:'employee_invite',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.badge_outlined),title:Text('Çalışan davet kodu')))]),IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),
   body:FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('business_memberships').select('business_id, businesses(id,name)').eq('customer_id',uid),builder:(c,m){
    if(m.connectionState!=ConnectionState.done)return const LoadingPage();
    if(m.hasError)return ErrorPage(message:err(m.error!));
@@ -829,11 +837,6 @@ class _CustomerPageState extends State<CustomerPage>{
       const SizedBox(width:10),
       SizedBox(height:54,width:58,child:ElevatedButton(onPressed:joinBusiness,style:ElevatedButton.styleFrom(padding:EdgeInsets.zero),child:const Icon(Icons.arrow_forward_rounded))),
      ]),
-     const Divider(height:28),
-     const SectionHeading('Çalışan davet kodu'),
-     const Text('İşletme sahibinin verdiği tek kullanımlık davet kodunu buraya gir.',style:TextStyle(color:muted,fontSize:12)),
-     const SizedBox(height:10),
-     Row(children:[Expanded(child:TextField(controller:employeeInviteCode,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(hintText:'DAVET KODU',prefixIcon:Icon(Icons.badge_outlined)))),const SizedBox(width:10),SizedBox(height:54,width:58,child:ElevatedButton(onPressed:claimEmployeeInvite,style:ElevatedButton.styleFrom(padding:EdgeInsets.zero),child:const Icon(Icons.login_rounded)))]),
      if(businesses.isEmpty)const Padding(padding:EdgeInsets.only(top:12),child:Text('Henüz bir işletmeye katılmadın.',style:TextStyle(color:muted,fontSize:12))),
     ])),
     const SizedBox(height:14),
