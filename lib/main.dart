@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const gold = Color(0xFFD8B36A);
@@ -673,18 +675,73 @@ class _AdminPageState extends State<AdminPage>{
  }
 }
 
+class BusinessOverviewPage extends StatefulWidget {
+  const BusinessOverviewPage({super.key, required this.business});
+  final Map<String, dynamic> business;
+  @override State<BusinessOverviewPage> createState() => _BusinessOverviewPageState();
+}
+class _BusinessOverviewPageState extends State<BusinessOverviewPage> {
+  late Future<List<Map<String, dynamic>>> appointmentsFuture;
+  Future<List<Map<String, dynamic>>> _load() async {
+    final rows = await sb.rpc('get_business_appointments', params: {'p_business_id': widget.business['id'], 'p_mine_only': false});
+    return (rows as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
+  }
+  @override void initState() { super.initState(); appointmentsFuture = _load(); }
+  Future<void> refresh() async { setState(() => appointmentsFuture = _load()); }
+  Future<void> setStatus(String id, String status) async {
+    try { await sb.rpc('update_appointment_status', params: {'p_appointment_id': id, 'p_status': status}); await refresh(); if (mounted) toast(context, 'Randevu güncellendi'); }
+    catch (e) { if (mounted) toast(context, err(e)); }
+  }
+  Future<void> cancel(String id) async {
+    try { await sb.rpc('cancel_appointment', params: {'p_appointment_id': id}); await refresh(); }
+    catch (e) { if (mounted) toast(context, err(e)); }
+  }
+  @override Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Genel bakış'), actions: [IconButton(tooltip: 'Yenile', onPressed: refresh, icon: const Icon(Icons.refresh_rounded))]),
+    body: FutureBuilder<List<Map<String, dynamic>>>(future: appointmentsFuture, builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) return const LoadingPage();
+      if (snapshot.hasError) return ErrorPage(message: err(snapshot.error!));
+      final rows = snapshot.data ?? [];
+      return ListView(padding: const EdgeInsets.fromLTRB(18, 14, 18, 28), children: [
+        ScreenHeading(eyebrow: 'İŞLETME RAPORU', title: widget.business['name'] ?? 'İşletme', subtitle: 'Kendin ve tüm çalışanların için oluşturulan randevular.', icon: Icons.dashboard_rounded),
+        Row(children: [
+          Expanded(child: AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.event_available_rounded, color: gold), const SizedBox(height: 8), Text('${rows.length}', style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900)), const Text('Toplam randevu', style: TextStyle(color: muted, fontSize: 11))]))),
+          const SizedBox(width: 10),
+          Expanded(child: AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.pending_actions_rounded, color: gold), const SizedBox(height: 8), Text('${rows.where((a) => a['status'] == 'pending' || a['status'] == 'confirmed').length}', style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900)), const Text('Aktif randevu', style: TextStyle(color: muted, fontSize: 11))]))),
+        ]),
+        const SizedBox(height: 20),
+        const SectionHeading('İşletmenin tüm randevuları'),
+        if (rows.isEmpty) const AppPanel(child: EmptyStateView(icon: Icons.event_busy_rounded, title: 'Randevu bulunmuyor', subtitle: 'İşletmene gelen tüm randevular burada listelenecek.')),
+        ...rows.map((a) => BusinessAppointmentCard(
+          appointment: a, showEmployee: true,
+          onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => setStatus(a['appointment_id'].toString(), 'completed') : null,
+          onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => cancel(a['appointment_id'].toString()) : null,
+        )),
+      ]);
+    }),
+  );
+}
 class BarberPage extends StatefulWidget { const BarberPage({super.key,required this.business}); final Map<String,dynamic> business; @override State<BarberPage> createState()=>_BarberPageState(); }
 class _BarberPageState extends State<BarberPage>{
  final service=TextEditingController(),price=TextEditingController(),duration=TextEditingController(text:'30'),employee=TextEditingController(),open=TextEditingController(text:'09:00'),close=TextEditingController(text:'20:00'),breakStart=TextEditingController(text:'13:00'),breakEnd=TextEditingController(text:'14:00');
  bool busy=false;
  late Future<List<Map<String,dynamic>>> _employeesFuture;
  late Future<List<Map<String,dynamic>>> _servicesFuture;
- late Future<List<Map<String,dynamic>>> _appointmentsFuture;
- @override void initState(){super.initState();_reloadFutures();}
+ late Future<List<Map<String,dynamic>>> _appointmentsMineFuture;
+ int appointmentIntervalMinutes=30;
+ @override void initState(){super.initState();appointmentIntervalMinutes=(widget.business['appointment_interval_minutes'] as num?)?.toInt()??30;_reloadFutures();}
  void _reloadFutures(){
   _employeesFuture=sb.from('employees').select('*, employee_invites(invite_code,claimed_at,expires_at)').eq('business_id',widget.business['id']).timeout(const Duration(seconds:12));
   _servicesFuture=sb.from('services').select().eq('business_id',widget.business['id']).timeout(const Duration(seconds:12));
-  _appointmentsFuture=sb.from('appointments').select('*, services(name), employees(display_name), profiles(full_name)').eq('business_id',widget.business['id']).order('starts_at').limit(100).timeout(const Duration(seconds:12));
+  _appointmentsMineFuture=_loadBusinessAppointments(true);
+ }
+ Future<List<Map<String,dynamic>>> _loadBusinessAppointments(bool mineOnly) async {
+  final rows=await sb.rpc('get_business_appointments',params:{'p_business_id':widget.business['id'],'p_mine_only':mineOnly});
+  return (rows as List).map((row)=>Map<String,dynamic>.from(row as Map)).toList();
+ }
+ Future<void> saveAppointmentInterval() async {
+  try{await sb.from('businesses').update({'appointment_interval_minutes':appointmentIntervalMinutes}).eq('id',widget.business['id']);if(mounted)toast(context,'Randevu aralığı kaydedildi');}
+  catch(e){if(mounted)toast(context,err(e));}
  }
  Future<void> refresh()async{if(mounted)setState(_reloadFutures);}
  Future<void> addService()async{try{await sb.from('services').insert({'business_id':widget.business['id'],'name':service.text.trim(),'price':double.parse(price.text),'duration_minutes':int.parse(duration.text)});service.clear();price.clear();refresh();}catch(e){toast(context,err(e));}}
@@ -696,20 +753,26 @@ class _BarberPageState extends State<BarberPage>{
   const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(fontSize:16,fontWeight:FontWeight.w800)),Text(caption,style:const TextStyle(fontSize:11,color:muted))])),
  ]));
  @override Widget build(BuildContext c)=>Scaffold(
-  appBar:AppBar(title:Text(widget.business['name']),actions:[notificationAction(context),IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),
+  appBar:AppBar(title:Text(widget.business['name']),actions:[IconButton(tooltip:'Genel bakış',onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>BusinessOverviewPage(business:widget.business))),icon:const Icon(Icons.dashboard_outlined)),notificationAction(context),IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),
   body:ListView(padding:const EdgeInsets.fromLTRB(18,12,18,30),children:[
    const ScreenHeading(eyebrow:'İŞLETME PANELİ',title:'İşletmeni yönet',subtitle:'Çalışma düzenini, ekibini, hizmetlerini ve randevularını tek ekrandan kontrol et.',icon:Icons.storefront_rounded),
-   AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-    Row(children:[const Icon(Icons.qr_code_rounded,color:gold,size:22),const SizedBox(width:9),const Expanded(child:Text('İşletme katılım kodu',style:TextStyle(fontWeight:FontWeight.w800))),const StatusTag('AKTİF',color:Colors.greenAccent)]),
+   AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.center,children:[
+    Row(children:[const Icon(Icons.qr_code_2_rounded,color:gold,size:22),const SizedBox(width:9),const Expanded(child:Text('İşletme katılım QR kodu',style:TextStyle(fontWeight:FontWeight.w800))),const StatusTag('AKTİF',color:Colors.greenAccent)]),
+    const SizedBox(height:16),
+    Container(padding:const EdgeInsets.all(14),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(18)),child:QrImageView(data:'BERBERIM:${widget.business['join_code']??''}',version:QrVersions.auto,size:210,backgroundColor:Colors.white)),
     const SizedBox(height:12),
-    Container(width:double.infinity,padding:const EdgeInsets.symmetric(vertical:17),decoration:BoxDecoration(color:ink,borderRadius:BorderRadius.circular(15)),child:SelectableText(widget.business['join_code']??'—',textAlign:TextAlign.center,style:const TextStyle(color:gold,fontSize:27,fontWeight:FontWeight.w900,letterSpacing:3))),
-    const SizedBox(height:8),const Text('Müşterilerin bu kodla işletmene katılabilir.',style:TextStyle(color:muted,fontSize:11)),
+    const Text('Müşterilerin bu QR kodu okutarak işletmene katılabilir.',textAlign:TextAlign.center,style:TextStyle(color:muted,fontSize:12)),
    ])),
    const SizedBox(height:14),
    AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
     groupTitle('Çalışma saatleri','Haftalık açılış ve kapanış saatleri',Icons.schedule_rounded),
     Row(children:[Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const FieldLabel('AÇILIŞ'),TextField(controller:open,decoration:const InputDecoration(hintText:'09:00'))])),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const FieldLabel('KAPANIŞ'),TextField(controller:close,decoration:const InputDecoration(hintText:'20:00'))]))]),
     const SizedBox(height:13),OutlinedButton.icon(onPressed:saveHours,icon:const Icon(Icons.calendar_month_rounded),label:const Text('Haftanın tüm günlerine uygula')),
+    const Divider(height:30),
+    const FieldLabel('RANDEVU ARALIĞI'),
+    DropdownButtonFormField<int>(value:appointmentIntervalMinutes,decoration:const InputDecoration(prefixIcon:Icon(Icons.timer_outlined),hintText:'Randevu aralığını seç'),items:const [10,15,20,30,45,60].map((m)=>DropdownMenuItem(value:m,child:Text('$m dakikada bir'))).toList(),onChanged:(v){if(v!=null)setState(()=>appointmentIntervalMinutes=v);}),
+    const SizedBox(height:10),
+    OutlinedButton.icon(onPressed:saveAppointmentInterval,icon:const Icon(Icons.save_outlined),label:const Text('Randevu aralığını kaydet')),
     const Divider(height:30),
     const FieldLabel('MOLA SAATLERİ'),
     Row(children:[Expanded(child:TextField(controller:breakStart,decoration:const InputDecoration(labelText:'Başlangıç'))),const SizedBox(width:12),Expanded(child:TextField(controller:breakEnd,decoration:const InputDecoration(labelText:'Bitiş')))]),
@@ -746,15 +809,17 @@ class _BarberPageState extends State<BarberPage>{
    ])),
    const SizedBox(height:14),
    AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-    groupTitle('Randevular','Gelen randevuları görüntüle ve yönet',Icons.event_note_rounded),
-    FutureBuilder<List<Map<String,dynamic>>>(future:_appointmentsFuture,builder:(c,s){
+    groupTitle('Randevularım','Yalnızca sana atanmış randevular',Icons.event_note_rounded),
+    FutureBuilder<List<Map<String,dynamic>>>(future:_appointmentsMineFuture,builder:(c,s){
      if(s.connectionState!=ConnectionState.done)return const LinearProgressIndicator();
      if(s.hasError)return Text(err(s.error!),style:const TextStyle(color:Colors.redAccent));
-     if((s.data??[]).isEmpty)return const EmptyStateView(icon:Icons.event_busy_rounded,title:'Randevu bulunmuyor',subtitle:'Müşteriler randevu aldığında burada listelenecek.');
-     return Column(children:(s.data??[]).map((a)=>ListTile(contentPadding:EdgeInsets.zero,leading:const CircleAvatar(backgroundColor:ink,child:Icon(Icons.event_available_rounded,color:gold)),title:Text(a['services']?['name']??'Randevu',style:const TextStyle(fontWeight:FontWeight.w700)),subtitle:Text('${a['starts_at']} • ${a['employees']?['display_name']??''}',style:const TextStyle(color:muted,fontSize:11)),trailing:(a['status']=='pending'||a['status']=='confirmed')?Wrap(spacing:0,children:[
-      IconButton(tooltip:'Tamamlandı olarak işaretle',icon:const Icon(Icons.check_circle_outline_rounded,color:Colors.greenAccent),onPressed:()async{try{await sb.rpc('update_appointment_status',params:{'p_appointment_id':a['id'],'p_status':'completed'});await refresh();if(mounted)toast(context,'Randevu tamamlandı olarak işaretlendi');}catch(e){if(mounted)toast(context,err(e));}}),
-      IconButton(tooltip:'İptal et',icon:const Icon(Icons.cancel_outlined,color:Colors.redAccent),onPressed:()async{try{await sb.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});await refresh();}catch(e){if(mounted)toast(context,err(e));}}),
-     ]):StatusTag(appointmentStatusLabel(a['status']),color:a['status']=='completed'?Colors.greenAccent:muted))).toList());
+     final rows=s.data??[];
+     if(rows.isEmpty)return const EmptyStateView(icon:Icons.event_busy_rounded,title:'Randevu bulunmuyor',subtitle:'Sana atanmış randevular burada listelenecek.');
+     return Column(children:rows.map((a)=>BusinessAppointmentCard(
+      appointment:a,
+      onComplete:(a['status']=='pending'||a['status']=='confirmed')?()async{try{await sb.rpc('update_appointment_status',params:{'p_appointment_id':a['appointment_id'],'p_status':'completed'});await refresh();}catch(e){if(mounted)toast(context,err(e));}}:null,
+      onCancel:(a['status']=='pending'||a['status']=='confirmed')?()async{try{await sb.rpc('cancel_appointment',params:{'p_appointment_id':a['appointment_id']});await refresh();}catch(e){if(mounted)toast(context,err(e));}}:null,
+     )).toList());
     }),
    ])),
   ]),
@@ -791,18 +856,87 @@ class _NotificationsPageState extends State<NotificationsPage>{
  }));
 }
 
-class EmployeePage extends StatefulWidget { const EmployeePage({super.key,required this.employee}); final Map<String,dynamic> employee; @override State<EmployeePage> createState()=>_EmployeePageState(); }
-class _EmployeePageState extends State<EmployeePage>{
- Future<List<Map<String,dynamic>>> load()=>sb.from('appointments').select('*, services(name), businesses(name)').eq('employee_id',widget.employee['id']).order('starts_at',ascending:true).limit(100);
- Future<void> setStatus(String id,String status)async{try{await sb.rpc('update_appointment_status',params:{'p_appointment_id':id,'p_status':status});if(mounted)setState((){});if(mounted)toast(context,status=='completed'?'Randevu tamamlandı':'Randevu gelmedi olarak işaretlendi');}catch(e){if(mounted)toast(context,err(e));}}
- Future<void> cancel(String id)async{try{await sb.rpc('cancel_appointment',params:{'p_appointment_id':id});if(mounted)setState((){});}catch(e){if(mounted)toast(context,err(e));}}
- @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:Text(widget.employee['businesses']?['name']??'Çalışan paneli'),actions:[notificationAction(context),IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),body:ListView(padding:const EdgeInsets.fromLTRB(18,14,18,28),children:[
-  ScreenHeading(eyebrow:'ÇALIŞAN PANELİ',title:widget.employee['display_name']??'Merhaba',subtitle:'Sana atanan randevuları buradan takip edebilirsin.',icon:Icons.badge_rounded),
-  const SectionHeading('Randevularım'),
-  FutureBuilder<List<Map<String,dynamic>>>(future:load(),builder:(c,s){if(s.connectionState!=ConnectionState.done)return const LinearProgressIndicator();if(s.hasError)return ErrorPage(message:err(s.error!));final rows=s.data??[];if(rows.isEmpty)return const AppPanel(child:EmptyStateView(icon:Icons.event_busy_rounded,title:'Henüz randevu yok',subtitle:'Sana atanan randevular burada görünecek.'));return Column(children:rows.map((a)=>AppPanel(margin:const EdgeInsets.only(bottom:10),child:ListTile(contentPadding:EdgeInsets.zero,leading:const CircleAvatar(backgroundColor:ink,child:Icon(Icons.event_available_rounded,color:gold)),title:Text(a['services']?['name']??'Randevu',style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text('${a['starts_at']} • ${a['businesses']?['name']??''}',style:const TextStyle(color:muted,fontSize:11)),trailing:(a['status']=='pending'||a['status']=='confirmed')?PopupMenuButton<String>(onSelected:(v){if(v=='completed'||v=='no_show')setStatus(a['id'],v);if(v=='cancelled')cancel(a['id']);},itemBuilder:(_)=>const [PopupMenuItem(value:'completed',child:Text('Tamamlandı')),PopupMenuItem(value:'no_show',child:Text('Gelmedi')),PopupMenuItem(value:'cancelled',child:Text('İptal et'))]):StatusTag(appointmentStatusLabel(a['status']))))).toList());}),
- ]));
-}
 
+String appointmentDateTimeLabel(Object? value) {
+  final parsed = DateTime.tryParse((value ?? '').toString());
+  if (parsed == null) return (value ?? 'Saat bilgisi yok').toString();
+  final d = parsed.toLocal();
+  final date = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+  final time = '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  return '$date • $time';
+}
+class BusinessAppointmentCard extends StatelessWidget {
+  const BusinessAppointmentCard({super.key, required this.appointment, this.showEmployee = false, this.onComplete, this.onCancel});
+  final Map<String, dynamic> appointment;
+  final bool showEmployee;
+  final VoidCallback? onComplete;
+  final VoidCallback? onCancel;
+  @override Widget build(BuildContext context) {
+    final active = appointment['status'] == 'pending' || appointment['status'] == 'confirmed';
+    final statusColor = appointment['status'] == 'completed' ? Colors.greenAccent : appointment['status'] == 'cancelled' ? Colors.redAccent : muted;
+    return AppPanel(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(15), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(width: 44, height: 44, decoration: BoxDecoration(color: gold.withValues(alpha: .12), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.person_outline_rounded, color: gold)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text((appointment['customer_name'] ?? 'Müşteri').toString(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+          const SizedBox(height: 4),
+          Text((appointment['service_name'] ?? 'Hizmet').toString(), style: const TextStyle(color: muted, fontSize: 12)),
+          if (showEmployee && (appointment['employee_name'] ?? '').toString().isNotEmpty)
+            Padding(padding: const EdgeInsets.only(top: 3), child: Text('Çalışan: ${appointment['employee_name']}', style: const TextStyle(color: muted, fontSize: 11))),
+        ])),
+        StatusTag(appointmentStatusLabel(appointment['status']), color: statusColor),
+      ]),
+      const SizedBox(height: 12),
+      Row(children: [const Icon(Icons.schedule_rounded, size: 16, color: gold), const SizedBox(width: 7), Text(appointmentDateTimeLabel(appointment['starts_at']), style: const TextStyle(color: gold, fontSize: 12, fontWeight: FontWeight.w700))]),
+      if (active && (onComplete != null || onCancel != null)) ...[
+        const Divider(height: 24),
+        Row(children: [
+          if (onComplete != null) Expanded(child: OutlinedButton.icon(onPressed: onComplete, icon: const Icon(Icons.check_circle_outline_rounded, size: 17), label: const Text('Tamamlandı'))),
+          if (onComplete != null && onCancel != null) const SizedBox(width: 9),
+          if (onCancel != null) Expanded(child: TextButton.icon(onPressed: onCancel, icon: const Icon(Icons.cancel_outlined, size: 17), label: const Text('İptal et'))),
+        ]),
+      ],
+    ]));
+  }
+}
+class EmployeePage extends StatefulWidget {
+  const EmployeePage({super.key, required this.employee});
+  final Map<String, dynamic> employee;
+  @override State<EmployeePage> createState() => _EmployeePageState();
+}
+class _EmployeePageState extends State<EmployeePage> {
+  Future<List<Map<String, dynamic>>> load() async {
+    final rows = await sb.rpc('get_business_appointments', params: {'p_business_id': widget.employee['business_id'], 'p_mine_only': true});
+    return (rows as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
+  }
+  Future<void> setStatus(String id, String status) async {
+    try { await sb.rpc('update_appointment_status', params: {'p_appointment_id': id, 'p_status': status}); if (mounted) setState(() {}); if (mounted) toast(context, status == 'completed' ? 'Randevu tamamlandı' : 'Randevu gelmedi olarak işaretlendi'); }
+    catch (e) { if (mounted) toast(context, err(e)); }
+  }
+  Future<void> cancel(String id) async {
+    try { await sb.rpc('cancel_appointment', params: {'p_appointment_id': id}); if (mounted) setState(() {}); }
+    catch (e) { if (mounted) toast(context, err(e)); }
+  }
+  @override Widget build(BuildContext c) => Scaffold(
+    appBar: AppBar(title: Text(widget.employee['businesses']?['name'] ?? 'Çalışan paneli'), actions: [notificationAction(context), IconButton(tooltip: 'Çıkış yap', onPressed: () => sb.auth.signOut(), icon: const Icon(Icons.logout_rounded))]),
+    body: FutureBuilder<List<Map<String, dynamic>>>(future: load(), builder: (c, s) {
+      if (s.connectionState != ConnectionState.done) return const LoadingPage();
+      if (s.hasError) return ErrorPage(message: err(s.error!));
+      final rows = s.data ?? [];
+      return ListView(padding: const EdgeInsets.fromLTRB(18, 14, 18, 28), children: [
+        ScreenHeading(eyebrow: 'ÇALIŞAN PANELİ', title: widget.employee['display_name'] ?? 'Merhaba', subtitle: 'Yalnızca sana atanmış randevuları buradan takip edebilirsin.', icon: Icons.badge_rounded),
+        const SectionHeading('Randevularım'),
+        if (rows.isEmpty) const AppPanel(child: EmptyStateView(icon: Icons.event_busy_rounded, title: 'Henüz randevu yok', subtitle: 'Sana atanmış randevular burada görünecek.')),
+        ...rows.map((a) => BusinessAppointmentCard(
+          appointment: a,
+          onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => setStatus(a['appointment_id'].toString(), 'completed') : null,
+          onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => cancel(a['appointment_id'].toString()) : null,
+        )),
+      ]);
+    }),
+  );
+}
 class EmployeeInvitePage extends StatefulWidget { const EmployeeInvitePage({super.key}); @override State<EmployeeInvitePage> createState()=>_EmployeeInvitePageState(); }
 class _EmployeeInvitePageState extends State<EmployeeInvitePage>{
  final code=TextEditingController(); bool busy=false;
@@ -811,34 +945,138 @@ class _EmployeeInvitePageState extends State<EmployeeInvitePage>{
  }
 }
 
+
+class CustomerQrScannerPage extends StatefulWidget {
+  const CustomerQrScannerPage({super.key});
+  @override State<CustomerQrScannerPage> createState() => _CustomerQrScannerPageState();
+}
+class _CustomerQrScannerPageState extends State<CustomerQrScannerPage> {
+  bool handled = false;
+  @override Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('İşletme QR kodunu okut')),
+    body: Stack(children: [
+      MobileScanner(onDetect: (capture) {
+        if (handled) return;
+        for (final barcode in capture.barcodes) {
+          final raw = barcode.rawValue?.trim();
+          if (raw == null || raw.isEmpty) continue;
+          handled = true;
+          final code = raw.startsWith('BERBERIM:') ? raw.substring(9).trim() : raw;
+          Navigator.of(context).pop(code);
+          return;
+        }
+      }),
+      Center(child: Container(width: 260, height: 260, decoration: BoxDecoration(border: Border.all(color: gold, width: 3), borderRadius: BorderRadius.circular(26)))),
+      const Positioned(left: 24, right: 24, bottom: 34, child: AppPanel(child: Text('İşletmenin yönetim panelinde gösterilen QR kodu çerçevenin içine al.', textAlign: TextAlign.center, style: TextStyle(color: ivory, height: 1.4)))),
+    ]),
+  );
+}
+class CustomerProfilePage extends StatefulWidget {
+  const CustomerProfilePage({super.key});
+  @override State<CustomerProfilePage> createState() => _CustomerProfilePageState();
+}
+class _CustomerProfilePageState extends State<CustomerProfilePage> {
+  late Future<Map<String, dynamic>?> profileFuture;
+  late Future<List<Map<String, dynamic>>> membershipsFuture;
+  @override void initState() { super.initState(); _reload(); }
+  void _reload() {
+    profileFuture = sb.from('profiles').select('full_name,email,phone').eq('id', uid).maybeSingle();
+    membershipsFuture = sb.from('business_memberships').select('business_id, businesses(id,name,address)').eq('customer_id', uid);
+  }
+  Future<void> leaveBusiness(String businessId, String name) async {
+    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+      title: const Text('İşletmeden ayrıl'),
+      content: Text('$name işletmesinden ayrılmak istediğine emin misin? Randevu geçmişin silinmez.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Vazgeç')),
+        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ayrıl')),
+      ],
+    ));
+    if (confirmed != true) return;
+    try {
+      await sb.rpc('leave_business', params: {'p_business_id': businessId});
+      if (!mounted) return;
+      toast(context, 'İşletmeden ayrıldın');
+      Navigator.of(context).pop(true);
+    } catch (e) { if (mounted) toast(context, err(e)); }
+  }
+  @override Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Profilim')),
+    body: FutureBuilder<Map<String, dynamic>?>(future: profileFuture, builder: (context, profile) {
+      if (profile.connectionState != ConnectionState.done) return const LoadingPage();
+      if (profile.hasError) return ErrorPage(message: err(profile.error!));
+      final p = profile.data ?? {};
+      return ListView(padding: const EdgeInsets.fromLTRB(18, 14, 18, 28), children: [
+        const ScreenHeading(eyebrow: 'HESABIM', title: 'Profilim', subtitle: 'Hesap bilgilerini ve işletme üyeliklerini buradan yönet.', icon: Icons.person_outline_rounded),
+        AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text((p['full_name'] ?? 'Berberim kullanıcısı').toString(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          const SizedBox(height: 6),
+          Text((p['email'] ?? '').toString(), style: const TextStyle(color: muted, fontSize: 12)),
+          if ((p['phone'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(p['phone'].toString(), style: const TextStyle(color: muted, fontSize: 12))),
+        ])),
+        const SizedBox(height: 18),
+        const SectionHeading('İşletme üyeliğim'),
+        FutureBuilder<List<Map<String, dynamic>>>(future: membershipsFuture, builder: (context, memberships) {
+          if (memberships.connectionState != ConnectionState.done) return const LinearProgressIndicator();
+          if (memberships.hasError) return Text(err(memberships.error!), style: const TextStyle(color: Colors.redAccent));
+          final rows = memberships.data ?? [];
+          if (rows.isEmpty) return const AppPanel(child: EmptyStateView(icon: Icons.storefront_outlined, title: 'Bir işletmeye bağlı değilsin', subtitle: 'İşletmenin QR kodunu okutarak katılabilirsin.'));
+          return Column(children: rows.map((row) {
+            final business = row['businesses'] as Map<String, dynamic>? ?? {};
+            final businessName = (business['name'] ?? 'İşletme').toString();
+            return AppPanel(margin: const EdgeInsets.only(bottom: 10), child: Row(children: [
+              const CircleAvatar(backgroundColor: ink, child: Icon(Icons.storefront_rounded, color: gold)),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(businessName, style: const TextStyle(fontWeight: FontWeight.w800)),
+                if ((business['address'] ?? '').toString().isNotEmpty) Text(business['address'].toString(), style: const TextStyle(color: muted, fontSize: 11)),
+              ])),
+              TextButton(onPressed: () => leaveBusiness(row['business_id'].toString(), businessName), child: const Text('Berberim’den ayrıl')),
+            ]));
+          }).toList());
+        }),
+      ]);
+    }),
+  );
+}
 class CustomerPage extends StatefulWidget { const CustomerPage({super.key}); @override State<CustomerPage> createState()=>_CustomerPageState(); }
 class _CustomerPageState extends State<CustomerPage>{
- final joinCode=TextEditingController(); String? businessId,employeeId,serviceId; String selectedTime=''; DateTime day=DateTime.now().add(const Duration(days:1)); bool busy=false;
- Future<void> joinBusiness()async{try{await sb.rpc('join_business_by_code',params:{'p_code':joinCode.text.trim().toUpperCase()});joinCode.clear();setState((){});toast(context,'İşletmeye katıldın');}catch(e){toast(context,err(e));}}
+ String? businessId,employeeId,serviceId; String selectedTime=''; DateTime day=DateTime.now().add(const Duration(days:1)); bool busy=false;
+ Future<void> scanAndJoin() async {
+  final code=await Navigator.of(context).push<String>(MaterialPageRoute(builder:(_)=>const CustomerQrScannerPage()));
+  if(code==null||code.trim().isEmpty)return;
+  try{await sb.rpc('join_business_by_code',params:{'p_code':code.trim().toUpperCase()});if(!mounted)return;setState((){});toast(context,'İşletmeye katıldın');}catch(e){if(mounted)toast(context,err(e));}
+ }
+ Future<void> openProfile() async {
+  final changed=await Navigator.of(context).push<bool>(MaterialPageRoute(builder:(_)=>const CustomerProfilePage()));
+  if(changed==true&&mounted)setState((){});
+ }
 
  String date(DateTime d)=>'${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
  Future<List<String>> loadAvailableTimes()async{if(businessId==null||employeeId==null||serviceId==null)return [];final rows=await sb.rpc('get_available_slots',params:{'p_business_id':businessId,'p_employee_id':employeeId,'p_service_id':serviceId,'p_date':date(day)});return (rows as List).map((r)=>(r['slot_start']??'').toString().substring(0,5)).toList();}
  Future<void> book()async{if(businessId==null||employeeId==null||serviceId==null||selectedTime.isEmpty)return;setState(()=>busy=true);try{final parts=selectedTime.split(':').map(int.parse).toList(); final local=DateTime(day.year,day.month,day.day,parts[0],parts[1]);await sb.rpc('book_appointment',params:{'p_business_id':businessId,'p_employee_id':employeeId,'p_service_id':serviceId,'p_starts_at':local.toUtc().toIso8601String()});toast(context,'Randevun oluşturuldu');}catch(e){toast(context,err(e));}if(mounted)setState(()=>busy=false);}
  Widget selectField(String label,Widget child)=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[FieldLabel(label),child]);
  @override Widget build(BuildContext c)=>Scaffold(
-  appBar:AppBar(title:const Text('Berberim'),actions:[notificationAction(context),PopupMenuButton<String>(tooltip:'Diğer işlemler',onSelected:(v){if(v=='employee_invite')Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const EmployeeInvitePage()));},itemBuilder:(_)=>const [PopupMenuItem(value:'employee_invite',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.badge_outlined),title:Text('Çalışan davet kodu')))]),IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),
+  appBar:AppBar(title:const Text('Berberim'),actions:[notificationAction(context),PopupMenuButton<String>(tooltip:'Diğer işlemler',onSelected:(v){if(v=='profile')openProfile();if(v=='employee_invite')Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const EmployeeInvitePage()));},itemBuilder:(_)=>const [PopupMenuItem(value:'profile',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.person_outline_rounded),title:Text('Profilim'))),PopupMenuItem(value:'employee_invite',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.badge_outlined),title:Text('Çalışan davet kodu')))]),IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),
   body:FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('business_memberships').select('business_id, businesses(id,name)').eq('customer_id',uid),builder:(c,m){
    if(m.connectionState!=ConnectionState.done)return const LoadingPage();
    if(m.hasError)return ErrorPage(message:err(m.error!));
    final businesses=(m.data??[]).map((x)=>x['businesses']).whereType<Map<String,dynamic>>().toList();
    return ListView(padding:const EdgeInsets.fromLTRB(18,12,18,30),children:[
     const ScreenHeading(eyebrow:'KİŞİSEL BAKIM',title:'Randevunu planla',subtitle:'Favori işletmeni seç, hizmetini belirle ve sana uygun zamanı ayır.',icon:Icons.calendar_month_rounded),
-    AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-     Row(children:[const Expanded(child:SectionHeading('İşletmene katıl')),StatusTag('${businesses.length} İŞLETME')]),
-     const Text('İşletmenin sana verdiği katılım kodunu gir.',style:TextStyle(color:muted,fontSize:12)),
-     const SizedBox(height:13),
-     Row(children:[
-      Expanded(child:TextField(controller:joinCode,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(hintText:'ÖRN. BERBER123',prefixIcon:Icon(Icons.key_rounded)))),
-      const SizedBox(width:10),
-      SizedBox(height:54,width:58,child:ElevatedButton(onPressed:joinBusiness,style:ElevatedButton.styleFrom(padding:EdgeInsets.zero),child:const Icon(Icons.arrow_forward_rounded))),
-     ]),
-     if(businesses.isEmpty)const Padding(padding:EdgeInsets.only(top:12),child:Text('Henüz bir işletmeye katılmadın.',style:TextStyle(color:muted,fontSize:12))),
-    ])),
+    if(businesses.isEmpty)
+     AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      const SectionHeading('İşletmene katıl'),
+      const Text('İşletmenin yönetim panelindeki QR kodu telefonunla okut.',style:TextStyle(color:muted,fontSize:12)),
+      const SizedBox(height:15),
+      SizedBox(height:54,child:ElevatedButton.icon(onPressed:scanAndJoin,icon:const Icon(Icons.qr_code_scanner_rounded),label:const Text('İşletme QR kodunu okut'))),
+     ]))
+    else
+     AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      Row(children:[const Expanded(child:SectionHeading('İşletmelerim')),StatusTag('${businesses.length} AKTİF')]),
+      ...businesses.map((b)=>Padding(padding:const EdgeInsets.only(bottom:8),child:Row(children:[const Icon(Icons.storefront_rounded,color:gold,size:18),const SizedBox(width:9),Expanded(child:Text((b['name']??'İşletme').toString(),style:const TextStyle(fontWeight:FontWeight.w700)))]))),
+      Align(alignment:Alignment.centerRight,child:TextButton.icon(onPressed:openProfile,icon:const Icon(Icons.manage_accounts_outlined),label:const Text('Üyeliği yönet'))),
+     ])),
     const SizedBox(height:14),
     AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
      const SectionHeading('Randevu detayları'),

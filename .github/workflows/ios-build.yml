@@ -35,6 +35,18 @@ jobs:
               raise SystemExit("Berberim auth callback URL scheme missing")
           print("iOS auth callback configured.")
           PY
+      - name: Configure QR scanner camera permission
+        run: |
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          p = Path("ios/Runner/Info.plist")
+          data = plistlib.loads(p.read_bytes())
+          data["NSCameraUsageDescription"] = "İşletme QR kodunu tarayarak Berberim'e katılmak için kamera erişimi gerekir."
+          p.write_bytes(plistlib.dumps(data))
+          if not plistlib.loads(p.read_bytes()).get("NSCameraUsageDescription"): raise SystemExit("Camera usage description missing")
+          print("iOS camera usage description configured.")
+          PY
       - name: Install dependencies
         run: flutter pub get
       - name: Analyze Dart

@@ -83,6 +83,21 @@ jobs:
               raise SystemExit("INTERNET permission was not added to the main manifest")
           print("Verified INTERNET permission in main Android manifest.")
           PY
+      - name: Ensure camera permission
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          permission = '<uses-permission android:name="android.permission.CAMERA"/>'
+          if "android.permission.CAMERA" not in s:
+              i = s.find('<application')
+              if i < 0: raise SystemExit("Android application tag not found")
+              s = s[:i] + permission + "\\n    " + s[i:]
+              p.write_text(s)
+          if "android.permission.CAMERA" not in p.read_text(): raise SystemExit("Camera permission missing")
+          print("Camera permission configured.")
+          PY
       - name: Install dependencies
         run: flutter pub get
       - name: Analyze Dart

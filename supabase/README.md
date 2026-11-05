@@ -24,10 +24,12 @@ Privileged database implementations live in the non-exposed `private` schema. Th
 ## App RPCs
 
 - `create_business_application`: atomically creates a pending business, its owner employee record, and seven default opening-hour rows.
-- `join_business_by_code`: joins an active business using its unique code.
+- `join_business_by_code`: joins an active business using the code embedded in its QR code.
+- `leave_business`: removes only the signed-in customer's membership; appointment history is retained.
+- `get_business_appointments`: returns only the caller's assigned appointments, or all business appointments for the business owner when requested.
 - `create_employee_invite`: creates an employee and a short-lived, business-scoped invite code for an active business owner.
 - `claim_employee_invite`: links a single-use, unexpired employee invite to the signed-in employee account; the employee then sees their own appointment dashboard.
-- `get_available_slots`: returns only free 30-minute start times for the selected employee/service, respecting opening hours, breaks and existing appointments.
+- `get_available_slots`: returns free start times using the business-configured appointment interval, respecting opening hours, breaks and existing appointments.
 - `book_appointment`: validates membership, business status, employee, service, opening hours, breaks and time before inserting.
 - `cancel_appointment`: authorizes cancellation by the customer, assigned employee or business owner.
 - `update_appointment_status`: allows the business owner, assigned employee or admin to mark an appointment completed/no-show.
