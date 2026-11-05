@@ -1328,100 +1328,237 @@ class CustomerAppointmentsPage extends StatefulWidget {
   const CustomerAppointmentsPage({super.key});
   @override State<CustomerAppointmentsPage> createState() => _CustomerAppointmentsPageState();
 }
+
 class _CustomerAppointmentsPageState extends State<CustomerAppointmentsPage> {
-  int filter = 0;
   late Future<List<Map<String, dynamic>>> appointmentsFuture;
-  @override void initState() { super.initState(); appointmentsFuture = _load(); }
+
+  @override
+  void initState() {
+    super.initState();
+    appointmentsFuture = _load();
+  }
+
   Future<List<Map<String, dynamic>>> _load() async {
     final rows = await sb.from('appointments')
       .select('id,starts_at,ends_at,status,businesses(name),services(name)')
-      .eq('customer_id', uid).order('starts_at', ascending: false).limit(100);
+      .eq('customer_id', uid)
+      .order('starts_at', ascending: false)
+      .limit(100);
     return (rows as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
-  Future<void> refresh() async { if (mounted) setState(() => appointmentsFuture = _load()); }
-  bool _matches(Map<String, dynamic> row) {
-    final status = row['status'];
-    if (filter == 1) return status == 'pending' || status == 'confirmed';
-    if (filter == 2) return status == 'completed';
-    if (filter == 3) return status == 'cancelled' || status == 'no_show';
-    return true;
+
+  Future<void> refresh() async {
+    final next = _load();
+    if (mounted) setState(() => appointmentsFuture = next);
+    await next;
   }
-  @override Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Randevularım'), actions: [
-      IconButton(tooltip: 'Yenile', onPressed: refresh, icon: const Icon(Icons.refresh_rounded)),
-    ]),
-    body: FutureBuilder<List<Map<String, dynamic>>>(future: appointmentsFuture, builder: (context, snap) {
-      if (snap.connectionState != ConnectionState.done) return const LoadingPage();
-      if (snap.hasError) return ErrorPage(message: err(snap.error!));
-      final all = snap.data ?? [];
-      final rows = all.where(_matches).toList();
-      final active = all.where((a) => a['status'] == 'pending' || a['status'] == 'confirmed').length;
-      return RefreshIndicator(onRefresh: refresh, child: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
-        children: [
-          const ScreenHeading(eyebrow: 'KİŞİSEL TAKVİM', title: 'Randevularım', subtitle: 'Aldığın randevuları, saatlerini ve güncel durumlarını tek yerde takip et.', icon: Icons.calendar_month_rounded),
-          Row(children: [
-            Expanded(child: AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.event_available_rounded, color: gold), const SizedBox(height: 7),
-              Text('${all.length}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
-              const Text('Toplam randevu', style: TextStyle(color: muted, fontSize: 11)),
-            ]))),
-            const SizedBox(width: 10),
-            Expanded(child: AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.pending_actions_rounded, color: gold), const SizedBox(height: 7),
-              Text('$active', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
-              const Text('Aktif randevu', style: TextStyle(color: muted, fontSize: 11)),
-            ]))),
-          ]),
-          const SizedBox(height: 14),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            _filterChip('Tümü', 0), _filterChip('Aktif', 1), _filterChip('Tamamlanan', 2), _filterChip('İptal / Gelmedi', 3),
-          ]),
-          const SizedBox(height: 14),
-          if (rows.isEmpty) AppPanel(child: EmptyStateView(
-            icon: Icons.event_busy_rounded,
-            title: filter == 0 ? 'Henüz randevun yok' : 'Bu kategoride randevu yok',
-            subtitle: filter == 0 ? 'İşletmeni seçerek ilk randevunu oluşturabilirsin.' : 'Farklı bir filtre seçerek diğer randevularını görebilirsin.',
-          )),
-          ...rows.map((a) {
-            final business = a['businesses'] as Map<String, dynamic>? ?? {};
-            final service = a['services'] as Map<String, dynamic>? ?? {};
-            final status = (a['status'] ?? '').toString();
-            final color = status == 'completed' ? Colors.greenAccent : status == 'cancelled' || status == 'no_show' ? Colors.redAccent : status == 'confirmed' ? gold : const Color(0xFFE8B66A);
-            final parsed = DateTime.tryParse((a['starts_at'] ?? '').toString())?.toLocal();
-            final day = parsed == null ? 'Tarih bilgisi yok' : '${parsed.day.toString().padLeft(2, '0')}.${parsed.month.toString().padLeft(2, '0')}.${parsed.year}';
-            final time = parsed == null ? '--:--' : '${parsed.hour.toString().padLeft(2, '0')}:${parsed.minute.toString().padLeft(2, '0')}';
-            return AppPanel(margin: const EdgeInsets.only(bottom: 11), padding: const EdgeInsets.all(15), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Container(width: 43, height: 43, decoration: BoxDecoration(color: gold.withValues(alpha: .12), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.storefront_rounded, color: gold)),
-                const SizedBox(width: 11),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text((business['name'] ?? 'İşletme').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                  const SizedBox(height: 3),
-                  Text((service['name'] ?? 'Hizmet').toString(), style: const TextStyle(color: muted, fontSize: 12)),
-                ])),
-                StatusTag(appointmentStatusLabel(status), color: color),
-              ]),
-              const SizedBox(height: 13),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11), decoration: BoxDecoration(color: ink, borderRadius: BorderRadius.circular(13), border: Border.all(color: border)), child: Row(children: [
-                const Icon(Icons.calendar_month_rounded, size: 17, color: gold), const SizedBox(width: 8),
-                Expanded(child: Text(day, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
-                const Icon(Icons.schedule_rounded, size: 17, color: gold), const SizedBox(width: 6),
-                Text(time, style: const TextStyle(color: goldLight, fontSize: 15, fontWeight: FontWeight.w900)),
-              ])),
-            ]));
-          }),
+
+  List<Map<String, dynamic>> _byStatus(List<Map<String, dynamic>> rows, int tab) {
+    if (tab == 0) {
+      return rows.where((a) => a['status'] == 'pending' || a['status'] == 'confirmed').toList();
+    }
+    if (tab == 1) return rows.where((a) => a['status'] == 'completed').toList();
+    return rows.where((a) => a['status'] == 'cancelled' || a['status'] == 'no_show').toList();
+  }
+
+  @override
+  Widget build(BuildContext context) => DefaultTabController(
+    length: 3,
+    child: Scaffold(
+      appBar: AppBar(
+        title: const Text('Randevularım'),
+        actions: [
+          IconButton(tooltip: 'Yenile', onPressed: refresh, icon: const Icon(Icons.refresh_rounded)),
         ],
-      ));
-    }),
+      ),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: appointmentsFuture,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) return const LoadingPage();
+          if (snap.hasError) return ErrorPage(message: err(snap.error!));
+          final all = snap.data ?? [];
+          final active = _byStatus(all, 0).length;
+          final completed = _byStatus(all, 1).length;
+          final cancelled = _byStatus(all, 2).length;
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const ScreenHeading(
+                      eyebrow: 'KİŞİSEL TAKVİM',
+                      title: 'Randevularım',
+                      subtitle: 'Randevularını durumlarına göre ayrı sekmelerde takip et.',
+                      icon: Icons.calendar_month_rounded,
+                    ),
+                    Row(
+                      children: [
+                        Expanded(child: AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Icon(Icons.event_available_rounded, color: gold),
+                          const SizedBox(height: 5),
+                          Text('${all.length}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                          const Text('Toplam', style: TextStyle(color: muted, fontSize: 11)),
+                        ]))),
+                        const SizedBox(width: 9),
+                        Expanded(child: AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Icon(Icons.pending_actions_rounded, color: gold),
+                          const SizedBox(height: 5),
+                          Text('$active', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                          const Text('Yaklaşan', style: TextStyle(color: muted, fontSize: 11)),
+                        ]))),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: panel,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: border),
+                      ),
+                      child: TabBar(
+                        dividerColor: Colors.transparent,
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        indicator: BoxDecoration(
+                          color: gold.withValues(alpha: .14),
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        labelColor: goldLight,
+                        unselectedLabelColor: muted,
+                        labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+                        tabs: [
+                          Tab(text: 'Yaklaşan ($active)'),
+                          Tab(text: 'Tamamlanan ($completed)'),
+                          Tab(text: 'İptal ($cancelled)'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _appointmentList(_byStatus(all, 0), 'Yaklaşan randevun yok', 'Yeni bir randevu aldığında burada görünecek.'),
+                    _appointmentList(_byStatus(all, 1), 'Tamamlanan randevu yok', 'Tamamlanan randevuların burada listelenecek.'),
+                    _appointmentList(_byStatus(all, 2), 'İptal edilmiş randevu yok', 'İptal edilen veya gidilmedi olarak işaretlenen randevular burada görünür.'),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    ),
   );
-  Widget _filterChip(String label, int value) => ChoiceChip(
-    label: Text(label), selected: filter == value,
-    onSelected: (_) => setState(() => filter = value),
-    selectedColor: gold.withValues(alpha: .18),
-    labelStyle: TextStyle(color: filter == value ? goldLight : muted, fontWeight: FontWeight.w700, fontSize: 11),
-    side: BorderSide(color: filter == value ? gold.withValues(alpha: .6) : border),
-  );
+
+  Widget _appointmentList(List<Map<String, dynamic>> rows, String emptyTitle, String emptySubtitle) {
+    if (rows.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: refresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(18, 24, 18, 28),
+          children: [
+            AppPanel(child: EmptyStateView(
+              icon: Icons.event_busy_rounded,
+              title: emptyTitle,
+              subtitle: emptySubtitle,
+            )),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: refresh,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
+        itemCount: rows.length,
+        itemBuilder: (context, index) => _appointmentCard(rows[index]),
+      ),
+    );
+  }
+
+  Widget _appointmentCard(Map<String, dynamic> appointment) {
+    final business = appointment['businesses'] as Map<String, dynamic>? ?? {};
+    final service = appointment['services'] as Map<String, dynamic>? ?? {};
+    final status = (appointment['status'] ?? '').toString();
+    final color = status == 'completed'
+      ? Colors.greenAccent
+      : status == 'cancelled' || status == 'no_show'
+        ? Colors.redAccent
+        : status == 'confirmed' ? gold : const Color(0xFFE8B66A);
+    final parsed = DateTime.tryParse((appointment['starts_at'] ?? '').toString())?.toLocal();
+    final day = parsed == null
+      ? 'Tarih bilgisi yok'
+      : '${parsed.day.toString().padLeft(2, '0')}.${parsed.month.toString().padLeft(2, '0')}.${parsed.year}';
+    final time = parsed == null
+      ? '--:--'
+      : '${parsed.hour.toString().padLeft(2, '0')}:${parsed.minute.toString().padLeft(2, '0')}';
+
+    return AppPanel(
+      margin: const EdgeInsets.only(bottom: 11),
+      padding: const EdgeInsets.all(15),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 43,
+                height: 43,
+                decoration: BoxDecoration(
+                  color: gold.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.storefront_rounded, color: gold),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (business['name'] ?? 'İşletme').toString(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                    ),
+                    const SizedBox(height: 3),
+                    Text((service['name'] ?? 'Hizmet').toString(), style: const TextStyle(color: muted, fontSize: 12)),
+                  ],
+                ),
+              ),
+              StatusTag(appointmentStatusLabel(status), color: color),
+            ],
+          ),
+          const SizedBox(height: 13),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            decoration: BoxDecoration(
+              color: ink,
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: border),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.calendar_month_rounded, size: 17, color: gold),
+                const SizedBox(width: 8),
+                Expanded(child: Text(day, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
+                const Icon(Icons.schedule_rounded, size: 17, color: gold),
+                const SizedBox(width: 6),
+                Text(time, style: const TextStyle(color: goldLight, fontSize: 15, fontWeight: FontWeight.w900)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class CustomerPage extends StatefulWidget { const CustomerPage({super.key}); @override State<CustomerPage> createState()=>_CustomerPageState(); }
