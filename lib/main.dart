@@ -1585,7 +1585,27 @@ class _CustomerPageState extends State<CustomerPage>{
    if(m.hasError)return ErrorPage(message:err(m.error!));
    final businesses=(m.data??[]).map((x)=>x['businesses']).whereType<Map<String,dynamic>>().toList();
    return ListView(padding:const EdgeInsets.fromLTRB(18,12,18,30),children:[
-    const ScreenHeading(eyebrow:'KİŞİSEL BAKIM',title:'Randevunu planla',subtitle:'Favori işletmeni seç, hizmetini belirle ve sana uygun zamanı ayır.',icon:Icons.calendar_month_rounded),
+    Container(
+     padding:const EdgeInsets.all(20),
+     decoration:BoxDecoration(
+      borderRadius:BorderRadius.circular(22),
+      gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF28251F),Color(0xFF17191E),Color(0xFF0B0C0F)]),
+      border:Border.all(color:gold.withValues(alpha:.35)),
+     ),
+     child:Row(children:[
+      Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const Text('KENDİNE ZAMAN AYIR',style:TextStyle(color:goldLight,fontSize:10,letterSpacing:1.3,fontWeight:FontWeight.w900)),
+       const SizedBox(height:9),
+       const Text('Bakım zamanın geldi.',style:TextStyle(fontSize:23,height:1.15,fontWeight:FontWeight.w900)),
+       const SizedBox(height:7),
+       const Text('Berberini seç, sana uygun saati kolayca ayır.',style:TextStyle(color:muted,fontSize:11)),
+       const SizedBox(height:10),
+       TextButton.icon(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.calendar_month_rounded,size:17),label:const Text('Randevularımı gör')),
+      ])),
+      const SizedBox(width:8),
+      Container(width:68,height:68,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(20)),child:const Icon(Icons.content_cut_rounded,color:goldLight,size:34)),
+     ]),
+    ),
     if(businesses.isEmpty)
      AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
       const SectionHeading('İşletmene katıl'),
@@ -1619,22 +1639,18 @@ class _CustomerPageState extends State<CustomerPage>{
      const SizedBox(height:20),
      SizedBox(height:54,child:ElevatedButton.icon(onPressed:busy||selectedTime.isEmpty?null:book,icon:busy?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2,color:ink)):const Icon(Icons.check_circle_outline_rounded),label:Text(busy?'Randevu oluşturuluyor…':'Randevunu oluştur'))),
     ])),
-    const SizedBox(height:24),
-    const SectionHeading('Randevularım'),
-    FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('appointments').select('*, businesses(name), services(name), employees(display_name)').eq('customer_id',uid).order('starts_at',ascending:false),builder:(c,s){
-     if(s.connectionState!=ConnectionState.done)return const LinearProgressIndicator();
-     if(s.hasError)return Text(err(s.error!),style:const TextStyle(color:Colors.redAccent));
-     if((s.data??[]).isEmpty)return const AppPanel(child:EmptyStateView(icon:Icons.event_available_rounded,title:'Henüz randevun yok',subtitle:'İlk randevunu oluşturduğunda burada görüntüleyebilirsin.'));
-     return Column(children:(s.data??[]).map((a)=>AppPanel(margin:const EdgeInsets.only(bottom:10),child:Row(children:[
-      Container(width:44,height:44,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(14)),child:const Icon(Icons.content_cut_rounded,color:gold)),
-      const SizedBox(width:13),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-       Text(a['services']?['name']??'Randevu',style:const TextStyle(fontWeight:FontWeight.w800)),
-       const SizedBox(height:4),Text(a['businesses']?['name']??'',style:const TextStyle(color:muted,fontSize:12)),
-       Text('${a['starts_at']} • ${a['employees']?['display_name']??''}',style:const TextStyle(color:gold,fontSize:10,fontWeight:FontWeight.w600)),
-      ])),
-      if(a['status']=='pending'||a['status']=='confirmed')IconButton(tooltip:'Randevuyu iptal et',icon:const Icon(Icons.cancel_outlined,color:Colors.redAccent),onPressed:()async{try{await sb.rpc('cancel_appointment',params:{'p_appointment_id':a['id']});if(mounted)setState((){});}catch(e){if(mounted)toast(context,err(e));}}) else StatusTag(appointmentStatusLabel(a['status']),color:a['status']=='completed'?Colors.greenAccent:muted),
-     ]))).toList());
-    }),
+    const SizedBox(height:16),
+    AppPanel(child:Row(children:[
+     Container(width:42,height:42,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(13)),child:const Icon(Icons.event_available_rounded,color:gold)),
+     const SizedBox(width:12),
+     const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text('Randevularım',style:TextStyle(fontWeight:FontWeight.w800,fontSize:14)),
+      SizedBox(height:3),
+      Text('Tüm randevularını ayrı ekranda takip et.',style:TextStyle(color:muted,fontSize:11)),
+     ])),
+     IconButton(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.arrow_forward_ios_rounded,size:17,color:gold)),
+    ])),
+
    ]);
   }),
  );
