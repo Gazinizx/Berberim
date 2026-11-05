@@ -1,6 +1,12 @@
 -- Customer QR membership, scoped appointment reads and configurable booking intervals.
-alter table public.businesses add column appointment_interval_minutes smallint not null default 30;
-alter table public.businesses add constraint businesses_appointment_interval_check check (appointment_interval_minutes in (10, 15, 20, 30, 45, 60));
+alter table public.businesses add column if not exists appointment_interval_minutes smallint not null default 30;
+do $block$
+begin
+  if not exists (select 1 from pg_constraint where conrelid='public.businesses'::regclass and conname='businesses_appointment_interval_check') then
+    alter table public.businesses add constraint businesses_appointment_interval_check check (appointment_interval_minutes in (10, 15, 20, 30, 45, 60));
+  end if;
+end;
+$block$;
 create or replace function private.set_appointment_interval(p_business_id uuid, p_interval_minutes integer)
 returns void language plpgsql security definer set search_path = ''
 as $function$
