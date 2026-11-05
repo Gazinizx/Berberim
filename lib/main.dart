@@ -952,7 +952,7 @@ class _BarberPageState extends State<BarberPage> {
           subtitle: Text(invites.isEmpty ? 'Aktif davet kodu yok' : 'Davet kodu: ${invites.map((i) => i['invite_code']).join(' • ')}', style: const TextStyle(color: gold, fontSize: 11)),
           trailing: StatusTag(e['is_active'] == true ? 'AKTİF' : 'PASİF', color: e['is_active'] == true ? Colors.greenAccent : muted),
         );
-      }).toList())),
+      }).toList()));
     }),
   ]);
 
@@ -985,7 +985,7 @@ class _BarberPageState extends State<BarberPage> {
           try { await sb.from('services').update({'is_active': v}).eq('id', e['id']); await refresh(); }
           catch (error) { if (mounted) toast(context, err(error)); }
         }),
-      )).toList())),
+      )).toList()));
     }),
   ]);
 
