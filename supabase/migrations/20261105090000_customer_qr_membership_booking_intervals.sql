@@ -1,9 +1,30 @@
 -- Customer QR membership, scoped appointment reads and configurable booking intervals.
 alter table public.businesses add column appointment_interval_minutes smallint not null default 30;
 alter table public.businesses add constraint businesses_appointment_interval_check check (appointment_interval_minutes in (10, 15, 20, 30, 45, 60));
-create policy "owners update appointment interval" on public.businesses for update to authenticated
-using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
-grant update (appointment_interval_minutes) on public.businesses to authenticated;
+create or replace function private.set_appointment_interval(p_business_id uuid, p_interval_minutes integer)
+returns void language plpgsql security definer set search_path = ''
+as $function$
+begin
+  if auth.uid() is null then raise exception 'Giriş yapmalısınız'; end if;
+  if exists(select 1 from public.profiles p where p.id = auth.uid() and p.is_blocked) then
+    raise exception 'Hesabınız geçici olarak kısıtlandı';
+  end if;
+  if p_interval_minutes not in (10, 15, 20, 30, 45, 60) then
+    raise exception 'Geçersiz randevu aralığı';
+  end if;
+  update public.businesses
+  set appointment_interval_minutes = p_interval_minutes::smallint
+  where id = p_business_id and owner_id = auth.uid();
+  if not found then raise exception 'Bu işletmenin ayarlarını değiştirme yetkiniz yok'; end if;
+end;
+$function$;
+revoke all on function private.set_appointment_interval(uuid, integer) from public, anon;
+grant execute on function private.set_appointment_interval(uuid, integer) to authenticated;
+create or replace function public.update_appointment_interval(p_business_id uuid, p_interval_minutes integer)
+returns void language sql security invoker set search_path = ''
+as $function$ select private.set_appointment_interval(p_business_id, p_interval_minutes); $function$;
+revoke all on function public.update_appointment_interval(uuid, integer) from public, anon;
+grant execute on function public.update_appointment_interval(uuid, integer) to authenticated;
 
 create or replace function private.leave_business(p_business_id uuid)
 returns void language plpgsql security definer set search_path = ''

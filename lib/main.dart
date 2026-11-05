@@ -740,7 +740,7 @@ class _BarberPageState extends State<BarberPage>{
   return (rows as List).map((row)=>Map<String,dynamic>.from(row as Map)).toList();
  }
  Future<void> saveAppointmentInterval() async {
-  try{await sb.from('businesses').update({'appointment_interval_minutes':appointmentIntervalMinutes}).eq('id',widget.business['id']);if(mounted)toast(context,'Randevu aralığı kaydedildi');}
+  try{await sb.rpc('update_appointment_interval',params:{'p_business_id':widget.business['id'],'p_interval_minutes':appointmentIntervalMinutes});if(mounted)toast(context,'Randevu aralığı kaydedildi');}
   catch(e){if(mounted)toast(context,err(e));}
  }
  Future<void> refresh()async{if(mounted)setState(_reloadFutures);}
