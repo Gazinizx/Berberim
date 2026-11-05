@@ -914,11 +914,11 @@ class _BarberPageState extends State<BarberPage> {
     ]);
   });
 
-  Widget _metricCard(String label, int value, IconData icon) => Expanded(child: AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Widget _metricCard(String label, int value, IconData icon) => AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Icon(icon, color: gold), const SizedBox(height: 8),
     Text('$value', style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900)),
     Text(label, style: const TextStyle(color: muted, fontSize: 11)),
-  ])));
+  ]));
 
   Future<void> _setStatus(String id, String status) async {
     try { await sb.rpc('update_appointment_status', params: {'p_appointment_id': id, 'p_status': status}); await refresh(); if (mounted) toast(context, 'Randevu güncellendi'); }
@@ -1223,43 +1223,6 @@ class _EmployeePageState extends State<EmployeePage> {
   );
 }
 
-class EmployeePage extends StatefulWidget {
-  const EmployeePage({super.key, required this.employee});
-  final Map<String, dynamic> employee;
-  @override State<EmployeePage> createState() => _EmployeePageState();
-}
-class _EmployeePageState extends State<EmployeePage> {
-  Future<List<Map<String, dynamic>>> load() async {
-    final rows = await sb.rpc('get_business_appointments', params: {'p_business_id': widget.employee['business_id'], 'p_mine_only': true});
-    return (rows as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
-  }
-  Future<void> setStatus(String id, String status) async {
-    try { await sb.rpc('update_appointment_status', params: {'p_appointment_id': id, 'p_status': status}); if (mounted) setState(() {}); if (mounted) toast(context, status == 'completed' ? 'Randevu tamamlandı' : 'Randevu gelmedi olarak işaretlendi'); }
-    catch (e) { if (mounted) toast(context, err(e)); }
-  }
-  Future<void> cancel(String id) async {
-    try { await sb.rpc('cancel_appointment', params: {'p_appointment_id': id}); if (mounted) setState(() {}); }
-    catch (e) { if (mounted) toast(context, err(e)); }
-  }
-  @override Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(title: Text(widget.employee['businesses']?['name'] ?? 'Çalışan paneli'), actions: [notificationAction(context), IconButton(tooltip: 'Çıkış yap', onPressed: () => sb.auth.signOut(), icon: const Icon(Icons.logout_rounded))]),
-    body: FutureBuilder<List<Map<String, dynamic>>>(future: load(), builder: (c, s) {
-      if (s.connectionState != ConnectionState.done) return const LoadingPage();
-      if (s.hasError) return ErrorPage(message: err(s.error!));
-      final rows = s.data ?? [];
-      return ListView(padding: const EdgeInsets.fromLTRB(18, 14, 18, 28), children: [
-        ScreenHeading(eyebrow: 'ÇALIŞAN PANELİ', title: widget.employee['display_name'] ?? 'Merhaba', subtitle: 'Yalnızca sana atanmış randevuları buradan takip edebilirsin.', icon: Icons.badge_rounded),
-        const SectionHeading('Randevularım'),
-        if (rows.isEmpty) const AppPanel(child: EmptyStateView(icon: Icons.event_busy_rounded, title: 'Henüz randevu yok', subtitle: 'Sana atanmış randevular burada görünecek.')),
-        ...rows.map((a) => BusinessAppointmentCard(
-          appointment: a,
-          onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => setStatus(a['appointment_id'].toString(), 'completed') : null,
-          onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => cancel(a['appointment_id'].toString()) : null,
-        )),
-      ]);
-    }),
-  );
-}
 class EmployeeInvitePage extends StatefulWidget { const EmployeeInvitePage({super.key}); @override State<EmployeeInvitePage> createState()=>_EmployeeInvitePageState(); }
 class _EmployeeInvitePageState extends State<EmployeeInvitePage>{
  final code=TextEditingController(); bool busy=false;
