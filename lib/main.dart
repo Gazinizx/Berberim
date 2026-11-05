@@ -943,7 +943,6 @@ class _EmployeeInvitePageState extends State<EmployeeInvitePage>{
  Future<void> claim()async{if(code.text.trim().isEmpty){toast(context,'Davet kodunu gir');return;}setState(()=>busy=true);try{await sb.rpc('claim_employee_invite',params:{'p_code':code.text.trim().toUpperCase()});if(!mounted)return;toast(context,'Çalışan daveti hesabına tanımlandı');Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder:(_)=>const AuthGate()),(r)=>false);}catch(e){if(mounted)toast(context,err(e));}finally{if(mounted)setState(()=>busy=false);}}
  @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('Çalışan daveti')),body:ListView(padding:const EdgeInsets.all(20),children:[const ScreenHeading(eyebrow:'PERSONEL KATILIMI',title:'Ekibine katıl',subtitle:'İşletme sahibinin sana özel oluşturduğu tek kullanımlık davet kodunu gir.',icon:Icons.badge_rounded),AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[const FieldLabel('ÇALIŞAN DAVET KODU'),TextField(controller:code,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(hintText:'DAVET KODUNU GİR',prefixIcon:Icon(Icons.key_rounded))),const SizedBox(height:18),SizedBox(height:52,child:ElevatedButton(onPressed:busy?null:claim,child:busy?const SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2,color:ink)):const Text('Daveti kabul et')))]))]));
  }
-}
 
 
 class CustomerQrScannerPage extends StatefulWidget {
