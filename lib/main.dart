@@ -1561,97 +1561,191 @@ class _CustomerAppointmentsPageState extends State<CustomerAppointmentsPage> {
   }
 }
 
-class CustomerPage extends StatefulWidget { const CustomerPage({super.key}); @override State<CustomerPage> createState()=>_CustomerPageState(); }
+class CustomerPage extends StatefulWidget {
+ const CustomerPage({super.key});
+ @override State<CustomerPage> createState()=>_CustomerPageState();
+}
 class _CustomerPageState extends State<CustomerPage>{
- String? businessId,employeeId,serviceId; String selectedTime=''; DateTime day=DateTime.now().add(const Duration(days:1)); bool busy=false;
- Future<void> scanAndJoin() async {
+ late Future<List<Map<String,dynamic>>> memberships;
+ @override void initState(){super.initState();memberships=_load();}
+ Future<List<Map<String,dynamic>>> _load()async{
+  final rows=await sb.from('business_memberships').select('business_id,businesses(id,name)').eq('customer_id',uid);
+  return (rows as List).map((e)=>Map<String,dynamic>.from(e['businesses'] as Map)).toList();
+ }
+ Future<void> _join()async{
   final code=await Navigator.of(context).push<String>(MaterialPageRoute(builder:(_)=>const CustomerQrScannerPage()));
   if(code==null||code.trim().isEmpty)return;
-  try{await sb.rpc('join_business_by_code',params:{'p_code':code.trim().toUpperCase()});if(!mounted)return;setState((){});toast(context,'İşletmeye katıldın');}catch(e){if(mounted)toast(context,err(e));}
+  try{await sb.rpc('join_business_by_code',params:{'p_code':code.trim().toUpperCase()});if(!mounted)return;setState(()=>memberships=_load());toast(context,'İşletmeye katıldın');}
+  catch(e){if(mounted)toast(context,err(e));}
  }
- Future<void> openProfile() async {
+ Future<void> _profile()async{
   final changed=await Navigator.of(context).push<bool>(MaterialPageRoute(builder:(_)=>const CustomerProfilePage()));
-  if(changed==true&&mounted)setState((){});
+  if(changed==true&&mounted)setState(()=>memberships=_load());
  }
-
- String date(DateTime d)=>'${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
- Future<List<String>> loadAvailableTimes()async{if(businessId==null||employeeId==null||serviceId==null)return [];final rows=await sb.rpc('get_available_slots',params:{'p_business_id':businessId,'p_employee_id':employeeId,'p_service_id':serviceId,'p_date':date(day)});return (rows as List).map((r)=>(r['slot_start']??'').toString().substring(0,5)).toList();}
- Future<void> book()async{if(businessId==null||employeeId==null||serviceId==null||selectedTime.isEmpty)return;setState(()=>busy=true);try{final parts=selectedTime.split(':').map(int.parse).toList(); final local=DateTime(day.year,day.month,day.day,parts[0],parts[1]);await sb.rpc('book_appointment',params:{'p_business_id':businessId,'p_employee_id':employeeId,'p_service_id':serviceId,'p_starts_at':local.toUtc().toIso8601String()});toast(context,'Randevun oluşturuldu');}catch(e){toast(context,err(e));}if(mounted)setState(()=>busy=false);}
- Widget selectField(String label,Widget child)=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[FieldLabel(label),child]);
  @override Widget build(BuildContext c)=>Scaffold(
-  appBar:AppBar(title:const Text('Berberim'),actions:[IconButton(tooltip:'Randevularım',onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.event_note_rounded)),notificationAction(context),PopupMenuButton<String>(tooltip:'Diğer işlemler',onSelected:(v){if(v=='profile')openProfile();if(v=='employee_invite')Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const EmployeeInvitePage()));},itemBuilder:(_)=>const [PopupMenuItem(value:'profile',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.person_outline_rounded),title:Text('Profilim'))),PopupMenuItem(value:'employee_invite',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.badge_outlined),title:Text('Çalışan davet kodu')))]),IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),
-  body:FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('business_memberships').select('business_id, businesses(id,name)').eq('customer_id',uid),builder:(c,m){
-   if(m.connectionState!=ConnectionState.done)return const LoadingPage();
-   if(m.hasError)return ErrorPage(message:err(m.error!));
-   final businesses=(m.data??[]).map((x)=>x['businesses']).whereType<Map<String,dynamic>>().toList();
-   return ListView(padding:const EdgeInsets.fromLTRB(18,12,18,30),children:[
-    Container(
-     padding:const EdgeInsets.all(20),
-     decoration:BoxDecoration(
-      borderRadius:BorderRadius.circular(22),
-      gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF28251F),Color(0xFF17191E),Color(0xFF0B0C0F)]),
-      border:Border.all(color:gold.withValues(alpha:.35)),
-     ),
+  appBar:AppBar(title:const Text('Berberim'),actions:[
+   IconButton(tooltip:'Randevularım',onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.event_note_rounded)),
+   notificationAction(context),
+   PopupMenuButton<String>(onSelected:(v){if(v=='profile')_profile();if(v=='invite')Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const EmployeeInvitePage()));},itemBuilder:(_)=>const [
+    PopupMenuItem(value:'profile',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.person_outline_rounded),title:Text('Profilim'))),
+    PopupMenuItem(value:'invite',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.badge_outlined),title:Text('Çalışan davet kodu'))),
+   ]),
+   IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded)),
+  ]),
+  body:FutureBuilder<List<Map<String,dynamic>>>(future:memberships,builder:(c,s){
+   if(s.connectionState!=ConnectionState.done)return const LoadingPage();
+   if(s.hasError)return ErrorPage(message:err(s.error!));
+   final businesses=s.data??[];
+   return ListView(padding:const EdgeInsets.fromLTRB(18,14,18,28),children:[
+    Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(
+     borderRadius:BorderRadius.circular(22),
+     gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF28251F),Color(0xFF17191E),Color(0xFF0B0C0F)]),
+     border:Border.all(color:gold.withValues(alpha:.35))),
      child:Row(children:[
-      Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-       const Text('KENDİNE ZAMAN AYIR',style:TextStyle(color:goldLight,fontSize:10,letterSpacing:1.3,fontWeight:FontWeight.w900)),
-       const SizedBox(height:9),
-       const Text('Bakım zamanın geldi.',style:TextStyle(fontSize:23,height:1.15,fontWeight:FontWeight.w900)),
-       const SizedBox(height:7),
-       const Text('Berberini seç, sana uygun saati kolayca ayır.',style:TextStyle(color:muted,fontSize:11)),
-       const SizedBox(height:10),
-       TextButton.icon(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.calendar_month_rounded,size:17),label:const Text('Randevularımı gör')),
+      const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       Text('KENDİNE ZAMAN AYIR',style:TextStyle(color:goldLight,fontSize:10,letterSpacing:1.3,fontWeight:FontWeight.w900)),
+       SizedBox(height:9),Text('Bakım zamanın geldi.',style:TextStyle(fontSize:23,height:1.15,fontWeight:FontWeight.w900)),
+       SizedBox(height:7),Text('Randevunu ayrı ve kolay adımlarla oluştur.',style:TextStyle(color:muted,fontSize:11)),
       ])),
-      const SizedBox(width:8),
-      Container(width:68,height:68,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(20)),child:const Icon(Icons.content_cut_rounded,color:goldLight,size:34)),
+      const SizedBox(width:8),Container(width:66,height:66,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(20)),child:const Icon(Icons.content_cut_rounded,color:goldLight,size:34)),
      ]),
     ),
-    if(businesses.isEmpty)
-     AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-      const SectionHeading('İşletmene katıl'),
-      const Text('İşletmenin yönetim panelindeki QR kodu telefonunla okut.',style:TextStyle(color:muted,fontSize:12)),
-      const SizedBox(height:15),
-      SizedBox(height:54,child:ElevatedButton.icon(onPressed:scanAndJoin,icon:const Icon(Icons.qr_code_scanner_rounded),label:const Text('İşletme QR kodunu okut'))),
-     ]))
-    else
-     AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-      Row(children:[const Expanded(child:SectionHeading('İşletmelerim')),StatusTag('${businesses.length} AKTİF')]),
-      ...businesses.map((b)=>Padding(padding:const EdgeInsets.only(bottom:8),child:Row(children:[const Icon(Icons.storefront_rounded,color:gold,size:18),const SizedBox(width:9),Expanded(child:Text((b['name']??'İşletme').toString(),style:const TextStyle(fontWeight:FontWeight.w700)))]))),
-      Align(alignment:Alignment.centerRight,child:TextButton.icon(onPressed:openProfile,icon:const Icon(Icons.manage_accounts_outlined),label:const Text('Üyeliği yönet'))),
-     ])),
-    const SizedBox(height:14),
-    AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-     const SectionHeading('Randevu detayları'),
-     selectField('İŞLETME',DropdownButtonFormField<String>(value:businessId,decoration:const InputDecoration(hintText:'İşletme seç',prefixIcon:Icon(Icons.storefront_outlined)),items:businesses.map((b)=>DropdownMenuItem(value:b['id'] as String,child:Text(b['name']))).toList(),onChanged:(v)=>setState((){businessId=v;employeeId=null;serviceId=null;selectedTime='';}))),
-     if(businessId!=null)...[
-      const SizedBox(height:16),
-      selectField('BERBER',FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('employees').select().eq('business_id',businessId!).eq('is_active',true),builder:(c,s)=>DropdownButtonFormField<String>(value:employeeId,decoration:const InputDecoration(hintText:'Berber seç',prefixIcon:Icon(Icons.person_outline_rounded)),items:(s.data??[]).map((e)=>DropdownMenuItem(value:e['id'] as String,child:Text(e['display_name']))).toList(),onChanged:(v)=>setState((){employeeId=v;selectedTime='';})))),
-      const SizedBox(height:16),
-      selectField('HİZMET',FutureBuilder<List<Map<String,dynamic>>>(future:sb.from('services').select().eq('business_id',businessId!).eq('is_active',true),builder:(c,s)=>DropdownButtonFormField<String>(value:serviceId,decoration:const InputDecoration(hintText:'Hizmet seç',prefixIcon:Icon(Icons.content_cut_rounded)),items:(s.data??[]).map((e)=>DropdownMenuItem(value:e['id'] as String,child:Text('${e['name']} • ${e['price']} TL / ${e['duration_minutes']} dk'))).toList(),onChanged:(v)=>setState((){serviceId=v;selectedTime='';})))),
-     ],
-     const SizedBox(height:18),
-     const FieldLabel('TARİH VE SAAT'),
-     Row(children:[
-      Expanded(child:OutlinedButton.icon(onPressed:()async{final d=await showDatePicker(context:c,initialDate:day,firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:90)));if(d!=null)setState((){day=d;selectedTime='';});},icon:const Icon(Icons.calendar_today_rounded),label:Text(date(day)))),
-      const SizedBox(width:10),
-      Expanded(child:FutureBuilder<List<String>>(future:loadAvailableTimes(),builder:(c,s){if(s.connectionState!=ConnectionState.done)return const InputDecorator(decoration:InputDecoration(prefixIcon:Icon(Icons.schedule_rounded),hintText:'Saatler yükleniyor'),child:LinearProgressIndicator());if(s.hasError)return Text(err(s.error!),style:const TextStyle(color:Colors.redAccent,fontSize:11));final slots=s.data??[];return DropdownButtonFormField<String>(value:slots.contains(selectedTime)?selectedTime:null,decoration:InputDecoration(prefixIcon:const Icon(Icons.schedule_rounded),hintText:slots.isEmpty?'Uygun saat yok':'Uygun saat seç'),items:slots.map((t)=>DropdownMenuItem(value:t,child:Text(t))).toList(),onChanged:(v)=>setState(()=>selectedTime=v??''));})),
-     ]),
-     const SizedBox(height:20),
-     SizedBox(height:54,child:ElevatedButton.icon(onPressed:busy||selectedTime.isEmpty?null:book,icon:busy?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2,color:ink)):const Icon(Icons.check_circle_outline_rounded),label:Text(busy?'Randevu oluşturuluyor…':'Randevunu oluştur'))),
-    ])),
     const SizedBox(height:16),
-    AppPanel(child:Row(children:[
-     Container(width:42,height:42,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(13)),child:const Icon(Icons.event_available_rounded,color:gold)),
-     const SizedBox(width:12),
-     const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      Text('Randevularım',style:TextStyle(fontWeight:FontWeight.w800,fontSize:14)),
-      SizedBox(height:3),
-      Text('Tüm randevularını ayrı ekranda takip et.',style:TextStyle(color:muted,fontSize:11)),
-     ])),
+    AppPanel(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+     Row(children:[const Expanded(child:SectionHeading('İşletmelerim')),StatusTag('\${businesses.length} AKTİF')]),
+     if(businesses.isEmpty) ...[
+      const Text('Randevu alabilmek için önce işletmenin QR kodunu okut.',style:TextStyle(color:muted,fontSize:12)),
+      const SizedBox(height:12),SizedBox(height:48,child:ElevatedButton.icon(onPressed:_join,icon:const Icon(Icons.qr_code_scanner_rounded),label:const Text('İşletme QR kodunu okut'))),
+     ]else ...[
+      ...businesses.map((b)=>Padding(padding:const EdgeInsets.only(bottom:8),child:Row(children:[const Icon(Icons.storefront_rounded,color:gold,size:18),const SizedBox(width:9),Expanded(child:Text((b['name']??'İşletme').toString(),style:const TextStyle(fontWeight:FontWeight.w700)))]))),
+      Row(children:[Expanded(child:TextButton.icon(onPressed:_profile,icon:const Icon(Icons.manage_accounts_outlined),label:const Text('Üyelikleri yönet'))),Expanded(child:TextButton.icon(onPressed:_join,icon:const Icon(Icons.add_rounded),label:const Text('İşletme ekle')))]),
+     ],
+    ])),
+    const SizedBox(height:14),
+    AppPanel(padding:const EdgeInsets.all(17),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+     const Text('Yeni randevu',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),
+     const SizedBox(height:5),const Text('Her seçim ayrı bir ekranda açılır. Uzun form yok.',style:TextStyle(color:muted,fontSize:12)),
+     const SizedBox(height:14),
+     SizedBox(height:52,child:ElevatedButton.icon(
+      onPressed:businesses.isEmpty?null:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CustomerBookingFlowPage(businesses:businesses))),
+      icon:const Icon(Icons.arrow_forward_rounded),label:const Text('Randevu oluşturmaya başla'),
+     )),
+    ])),
+    const SizedBox(height:12),
+    AppPanel(padding:const EdgeInsets.all(14),child:Row(children:[
+     const Icon(Icons.calendar_month_rounded,color:gold,size:25),const SizedBox(width:11),
+     const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Randevularım',style:TextStyle(fontWeight:FontWeight.w800,fontSize:14)),SizedBox(height:3),Text('Yaklaşan ve geçmiş randevuların.',style:TextStyle(color:muted,fontSize:11))])),
      IconButton(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.arrow_forward_ios_rounded,size:17,color:gold)),
     ])),
-
    ]);
   }),
+ );
+}
+
+class CustomerBookingFlowPage extends StatelessWidget{
+ final List<Map<String,dynamic>> businesses;
+ const CustomerBookingFlowPage({super.key,required this.businesses});
+ Future<Map<String,dynamic>?> _pick(BuildContext context,{required String title,required String subtitle,required List<Map<String,dynamic>> rows,required String nameKey,required IconData icon,String? detailKey}){
+  return Navigator.of(context).push<Map<String,dynamic>>(MaterialPageRoute(builder:(_)=>CustomerRecordPickerPage(title:title,subtitle:subtitle,rows:rows,nameKey:nameKey,icon:icon,detailKey:detailKey)));
+ }
+ Future<void> _start(BuildContext context,Map<String,dynamic> b)async{
+  try{
+   final er=await sb.from('employees').select().eq('business_id',b['id']).eq('is_active',true);
+   final employees=(er as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList();
+   if(!context.mounted)return;
+   if(employees.isEmpty){toast(context,'Bu işletmede aktif berber bulunamadı');return;}
+   final employee=await _pick(context,title:'Berberini seç',subtitle:'Randevunu almak istediğin berberi seç.',rows:employees,nameKey:'display_name',icon:Icons.person_outline_rounded);
+   if(employee==null||!context.mounted)return;
+   final sr=await sb.from('services').select().eq('business_id',b['id']).eq('is_active',true);
+   final services=(sr as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList();
+   if(!context.mounted)return;
+   if(services.isEmpty){toast(context,'Bu işletmede aktif hizmet bulunamadı');return;}
+   final service=await _pick(context,title:'Hizmetini seç',subtitle:'Almak istediğin hizmeti belirle.',rows:services,nameKey:'name',icon:Icons.content_cut_rounded,detailKey:'price');
+   if(service==null||!context.mounted)return;
+   await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CustomerDateTimePage(business:b,employee:employee,service:service)));
+  }catch(e){if(context.mounted)toast(context,err(e));}
+ }
+ @override Widget build(BuildContext context)=>Scaffold(
+  appBar:AppBar(title:const Text('1 / 4 · İşletme')),
+  body:ListView(padding:const EdgeInsets.fromLTRB(18,10,18,24),children:[
+   const ScreenHeading(eyebrow:'ADIM 1 / 4',title:'İşletmeni seç',subtitle:'Randevu almak istediğin işletmeyi seçerek devam et.',icon:Icons.storefront_rounded),
+   ...businesses.map((b)=>AppPanel(margin:const EdgeInsets.only(bottom:9),child:ListTile(
+    contentPadding:EdgeInsets.zero,leading:const Icon(Icons.storefront_rounded,color:gold),
+    title:Text((b['name']??'İşletme').toString(),style:const TextStyle(fontWeight:FontWeight.w800)),
+    trailing:const Icon(Icons.chevron_right_rounded,color:gold),
+    onTap:()=>_start(context,b),
+   ))),
+  ]),
+ );
+}
+
+class CustomerRecordPickerPage extends StatelessWidget{
+ final String title,subtitle,nameKey;final String? detailKey;final List<Map<String,dynamic>> rows;final IconData icon;
+ const CustomerRecordPickerPage({super.key,required this.title,required this.subtitle,required this.rows,required this.nameKey,required this.icon,this.detailKey});
+ @override Widget build(BuildContext context)=>Scaffold(
+  appBar:AppBar(title:Text(title)),
+  body:ListView(padding:const EdgeInsets.fromLTRB(18,10,18,24),children:[
+   ScreenHeading(eyebrow:'RANDEVU ADIMI',title:title,subtitle:subtitle,icon:icon),
+   ...rows.map((row)=>AppPanel(margin:const EdgeInsets.only(bottom:9),child:ListTile(
+    contentPadding:EdgeInsets.zero,
+    leading:Container(width:42,height:42,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(13)),child:Icon(icon,color:gold)),
+    title:Text((row[nameKey]??'').toString(),style:const TextStyle(fontWeight:FontWeight.w800)),
+    subtitle:detailKey==null?null:Text(detailKey=='price'?' \${row['price']} TL  •  \${row['duration_minutes']} dk':(row[detailKey]??'').toString(),style:const TextStyle(color:muted,fontSize:11)),
+    trailing:const Icon(Icons.arrow_forward_ios_rounded,size:16,color:gold),
+    onTap:()=>Navigator.of(context).pop(row),
+   ))),
+  ]),
+ );
+}
+
+class CustomerDateTimePage extends StatefulWidget{
+ final Map<String,dynamic> business,employee,service;
+ const CustomerDateTimePage({super.key,required this.business,required this.employee,required this.service});
+ @override State<CustomerDateTimePage> createState()=>_CustomerDateTimePageState();
+}
+class _CustomerDateTimePageState extends State<CustomerDateTimePage>{
+ DateTime day=DateTime.now().add(const Duration(days:1));String selectedTime='';bool busy=false;
+ String _date(DateTime d)=>'\${d.year.toString().padLeft(4,'0')}-\${d.month.toString().padLeft(2,'0')}-\${d.day.toString().padLeft(2,'0')}';
+ Future<List<String>> _slots()async{
+  final rows=await sb.rpc('get_available_slots',params:{'p_business_id':widget.business['id'],'p_employee_id':widget.employee['id'],'p_service_id':widget.service['id'],'p_date':_date(day)});
+  return (rows as List).map((r)=>(r['slot_start']??'').toString().substring(0,5)).toList();
+ }
+ Future<void> _book()async{
+  setState(()=>busy=true);
+  try{
+   final p=selectedTime.split(':').map(int.parse).toList();final local=DateTime(day.year,day.month,day.day,p[0],p[1]);
+   await sb.rpc('book_appointment',params:{'p_business_id':widget.business['id'],'p_employee_id':widget.employee['id'],'p_service_id':widget.service['id'],'p_starts_at':local.toUtc().toIso8601String()});
+   if(!mounted)return;toast(context,'Randevun oluşturuldu');Navigator.of(context).popUntil((r)=>r.isFirst);
+  }catch(e){if(mounted)toast(context,err(e));}
+  finally{if(mounted)setState(()=>busy=false);}
+ }
+ @override Widget build(BuildContext context)=>Scaffold(
+  appBar:AppBar(title:const Text('4 / 4 · Tarih ve saat')),
+  body:ListView(padding:const EdgeInsets.fromLTRB(18,10,18,24),children:[
+   const ScreenHeading(eyebrow:'ADIM 4 / 4',title:'Zamanını belirle',subtitle:'Önce günü, sonra müsait saatlerden birini seç.',icon:Icons.calendar_month_rounded),
+   AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    Text((widget.business['name']??'').toString(),style:const TextStyle(fontWeight:FontWeight.w900,fontSize:15)),
+    const SizedBox(height:5),Text('\${widget.service['name']} · \${widget.service['duration_minutes']} dk',style:const TextStyle(color:muted,fontSize:12)),
+    const SizedBox(height:3),Text((widget.employee['display_name']??'').toString(),style:const TextStyle(color:gold,fontSize:12)),
+   ])),
+   const SizedBox(height:14),
+   AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+    const SectionHeading('Tarih seç'),
+    OutlinedButton.icon(onPressed:()async{
+     final d=await showDatePicker(context:context,initialDate:day,firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:90)));
+     if(d!=null&&mounted)setState((){day=d;selectedTime='';});
+    },icon:const Icon(Icons.calendar_today_rounded),label:Text(_date(day))),
+    const SizedBox(height:16),const SectionHeading('Müsait saatler'),
+    FutureBuilder<List<String>>(future:_slots(),builder:(c,s){
+     if(s.connectionState!=ConnectionState.done)return const Padding(padding:EdgeInsets.all(14),child:Center(child:CircularProgressIndicator()));
+     if(s.hasError)return Text(err(s.error!),style:const TextStyle(color:Colors.redAccent,fontSize:12));
+     final slots=s.data??[];
+     if(slots.isEmpty)return const EmptyStateView(icon:Icons.event_busy_rounded,title:'Uygun saat yok',subtitle:'Başka bir tarih seçerek tekrar deneyebilirsin.');
+     return Wrap(spacing:8,runSpacing:8,children:slots.map((t)=>ChoiceChip(label:Text(t),selected:selectedTime==t,onSelected:(_)=>setState(()=>selectedTime=t)).toList());
+    }),
+   ])),
+   const SizedBox(height:16),
+   SizedBox(height:52,child:ElevatedButton.icon(onPressed:busy||selectedTime.isEmpty?null:_book,icon:busy?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2,color:ink)):const Icon(Icons.check_circle_outline_rounded),label:Text(busy?'Randevu oluşturuluyor…':'Randevumu onayla'))),
+  ]),
  );
 }
