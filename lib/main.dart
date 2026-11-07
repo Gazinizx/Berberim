@@ -1570,7 +1570,7 @@ class _CustomerPageState extends State<CustomerPage>{
  @override void initState(){super.initState();memberships=_load();}
  Future<List<Map<String,dynamic>>> _load()async{
   final rows=await sb.from('business_memberships').select('business_id,businesses(id,name)').eq('customer_id',uid);
-  return (rows as List).map((e)=>Map<String,dynamic>.from(e['businesses'] as Map)).toList();
+  return (rows as List).map((e)=>e['businesses']).whereType<Map<String,dynamic>>().toList();
  }
  Future<void> _join()async{
   final code=await Navigator.of(context).push<String>(MaterialPageRoute(builder:(_)=>const CustomerQrScannerPage()));
@@ -1645,8 +1645,8 @@ class _CustomerPageState extends State<CustomerPage>{
 class CustomerBookingFlowPage extends StatelessWidget{
  final List<Map<String,dynamic>> businesses;
  const CustomerBookingFlowPage({super.key,required this.businesses});
- Future<Map<String,dynamic>?> _pick(BuildContext context,{required String title,required String subtitle,required List<Map<String,dynamic>> rows,required String nameKey,required IconData icon,String? detailKey}){
-  return Navigator.of(context).push<Map<String,dynamic>>(MaterialPageRoute(builder:(_)=>CustomerRecordPickerPage(title:title,subtitle:subtitle,rows:rows,nameKey:nameKey,icon:icon,detailKey:detailKey)));
+ Future<Map<String,dynamic>?> _pick(BuildContext context,{required String title,required String subtitle,required List<Map<String,dynamic>> rows,required String nameKey,required IconData icon,required int step,String? detailKey}){
+  return Navigator.of(context).push<Map<String,dynamic>>(MaterialPageRoute(builder:(_)=>CustomerRecordPickerPage(title:title,subtitle:subtitle,rows:rows,nameKey:nameKey,icon:icon,step:step,detailKey:detailKey)));
  }
  Future<void> _start(BuildContext context,Map<String,dynamic> b)async{
   try{
@@ -1654,13 +1654,13 @@ class CustomerBookingFlowPage extends StatelessWidget{
    final employees=(er as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList();
    if(!context.mounted)return;
    if(employees.isEmpty){toast(context,'Bu işletmede aktif berber bulunamadı');return;}
-   final employee=await _pick(context,title:'Berberini seç',subtitle:'Randevunu almak istediğin berberi seç.',rows:employees,nameKey:'display_name',icon:Icons.person_outline_rounded);
+   final employee=await _pick(context,title:'Berberini seç',subtitle:'Randevunu almak istediğin berberi seç.',rows:employees,nameKey:'display_name',icon:Icons.person_outline_rounded,step:2);
    if(employee==null||!context.mounted)return;
    final sr=await sb.from('services').select().eq('business_id',b['id']).eq('is_active',true);
    final services=(sr as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList();
    if(!context.mounted)return;
    if(services.isEmpty){toast(context,'Bu işletmede aktif hizmet bulunamadı');return;}
-   final service=await _pick(context,title:'Hizmetini seç',subtitle:'Almak istediğin hizmeti belirle.',rows:services,nameKey:'name',icon:Icons.content_cut_rounded,detailKey:'price');
+   final service=await _pick(context,title:'Hizmetini seç',subtitle:'Almak istediğin hizmeti belirle.',rows:services,nameKey:'name',icon:Icons.content_cut_rounded,step:3,detailKey:'price');
    if(service==null||!context.mounted)return;
    await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CustomerDateTimePage(business:b,employee:employee,service:service)));
   }catch(e){if(context.mounted)toast(context,err(e));}
@@ -1680,12 +1680,12 @@ class CustomerBookingFlowPage extends StatelessWidget{
 }
 
 class CustomerRecordPickerPage extends StatelessWidget{
- final String title,subtitle,nameKey;final String? detailKey;final List<Map<String,dynamic>> rows;final IconData icon;
- const CustomerRecordPickerPage({super.key,required this.title,required this.subtitle,required this.rows,required this.nameKey,required this.icon,this.detailKey});
+ final String title,subtitle,nameKey;final String? detailKey;final List<Map<String,dynamic>> rows;final IconData icon;final int step;
+ const CustomerRecordPickerPage({super.key,required this.title,required this.subtitle,required this.rows,required this.nameKey,required this.icon,required this.step,this.detailKey});
  @override Widget build(BuildContext context)=>Scaffold(
-  appBar:AppBar(title:Text(title)),
+  appBar:AppBar(title:Text('$step / 4 · $title')),
   body:ListView(padding:const EdgeInsets.fromLTRB(18,10,18,24),children:[
-   ScreenHeading(eyebrow:'RANDEVU ADIMI',title:title,subtitle:subtitle,icon:icon),
+   ScreenHeading(eyebrow:'ADIM $step / 4',title:title,subtitle:subtitle,icon:icon),
    ...rows.map((row)=>AppPanel(margin:const EdgeInsets.only(bottom:9),child:ListTile(
     contentPadding:EdgeInsets.zero,
     leading:Container(width:42,height:42,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(13)),child:Icon(icon,color:gold)),
