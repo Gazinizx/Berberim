@@ -1612,7 +1612,7 @@ class _CustomerPageState extends State<CustomerPage>{
     ),
     const SizedBox(height:16),
     AppPanel(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-     Row(children:[const Expanded(child:SectionHeading('İşletmelerim')),StatusTag('\${businesses.length} AKTİF')]),
+     Row(children:[const Expanded(child:SectionHeading('İşletmelerim')),StatusTag('${businesses.length} AKTİF')]),
      if(businesses.isEmpty) ...[
       const Text('Randevu alabilmek için önce işletmenin QR kodunu okut.',style:TextStyle(color:muted,fontSize:12)),
       const SizedBox(height:12),SizedBox(height:48,child:ElevatedButton.icon(onPressed:_join,icon:const Icon(Icons.qr_code_scanner_rounded),label:const Text('İşletme QR kodunu okut'))),
@@ -1690,7 +1690,7 @@ class CustomerRecordPickerPage extends StatelessWidget{
     contentPadding:EdgeInsets.zero,
     leading:Container(width:42,height:42,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(13)),child:Icon(icon,color:gold)),
     title:Text((row[nameKey]??'').toString(),style:const TextStyle(fontWeight:FontWeight.w800)),
-    subtitle:detailKey==null?null:Text(detailKey=='price'?' \${row['price']} TL  •  \${row['duration_minutes']} dk':(row[detailKey]??'').toString(),style:const TextStyle(color:muted,fontSize:11)),
+    subtitle:detailKey==null?null:Text(detailKey=='price'?' ${row['price']} TL  •  ${row['duration_minutes']} dk':(row[detailKey]??'').toString(),style:const TextStyle(color:muted,fontSize:11)),
     trailing:const Icon(Icons.arrow_forward_ios_rounded,size:16,color:gold),
     onTap:()=>Navigator.of(context).pop(row),
    ))),
@@ -1705,7 +1705,7 @@ class CustomerDateTimePage extends StatefulWidget{
 }
 class _CustomerDateTimePageState extends State<CustomerDateTimePage>{
  DateTime day=DateTime.now().add(const Duration(days:1));String selectedTime='';bool busy=false;
- String _date(DateTime d)=>'\${d.year.toString().padLeft(4,'0')}-\${d.month.toString().padLeft(2,'0')}-\${d.day.toString().padLeft(2,'0')}';
+ String _date(DateTime d)=>'${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
  Future<List<String>> _slots()async{
   final rows=await sb.rpc('get_available_slots',params:{'p_business_id':widget.business['id'],'p_employee_id':widget.employee['id'],'p_service_id':widget.service['id'],'p_date':_date(day)});
   return (rows as List).map((r)=>(r['slot_start']??'').toString().substring(0,5)).toList();
@@ -1725,7 +1725,7 @@ class _CustomerDateTimePageState extends State<CustomerDateTimePage>{
    const ScreenHeading(eyebrow:'ADIM 4 / 4',title:'Zamanını belirle',subtitle:'Önce günü, sonra müsait saatlerden birini seç.',icon:Icons.calendar_month_rounded),
    AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
     Text((widget.business['name']??'').toString(),style:const TextStyle(fontWeight:FontWeight.w900,fontSize:15)),
-    const SizedBox(height:5),Text('\${widget.service['name']} · \${widget.service['duration_minutes']} dk',style:const TextStyle(color:muted,fontSize:12)),
+    const SizedBox(height:5),Text('${widget.service['name']} · ${widget.service['duration_minutes']} dk',style:const TextStyle(color:muted,fontSize:12)),
     const SizedBox(height:3),Text((widget.employee['display_name']??'').toString(),style:const TextStyle(color:gold,fontSize:12)),
    ])),
    const SizedBox(height:14),
@@ -1741,7 +1741,7 @@ class _CustomerDateTimePageState extends State<CustomerDateTimePage>{
      if(s.hasError)return Text(err(s.error!),style:const TextStyle(color:Colors.redAccent,fontSize:12));
      final slots=s.data??[];
      if(slots.isEmpty)return const EmptyStateView(icon:Icons.event_busy_rounded,title:'Uygun saat yok',subtitle:'Başka bir tarih seçerek tekrar deneyebilirsin.');
-     return Wrap(spacing:8,runSpacing:8,children:slots.map((t)=>ChoiceChip(label:Text(t),selected:selectedTime==t,onSelected:(_)=>setState(()=>selectedTime=t)).toList());
+     return Wrap(spacing:8,runSpacing:8,children:slots.map((t)=>ChoiceChip(label:Text(t),selected:selectedTime==t,onSelected:(_)=>setState(()=>selectedTime=t))).toList());
     }),
    ])),
    const SizedBox(height:16),
