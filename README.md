@@ -1,6 +1,6 @@
 # Berberim
 
-Berberim, birden fazla berber işletmesini destekleyen Flutter tabanlı Android ve iOS randevu uygulamasıdır. Uygulamanın backend'i **Supabase** kullanır; Firebase/Firestore kullanılmaz.
+Berberim, birden fazla berber işletmesini destekleyen Flutter tabanlı Android ve iOS randevu uygulamasıdır. Uygulamanın backend'i ve ana veritabanı **Supabase**'tir. Firebase yalnızca push bildirim taşıyıcısı (FCM) olarak kullanılır; Firebase Authentication, Firestore ve Realtime Database kullanılmaz.
 
 ## Özellikler
 - E-posta ve şifre ile kayıt/giriş
