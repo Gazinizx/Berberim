@@ -16,6 +16,14 @@ final sb = Supabase.instance.client;
 String get uid => sb.auth.currentUser!.id;
 String err(Object e) => e.toString().replaceFirst('Exception: ', '').replaceFirst('PostgrestException(message: ', '');
 
+String normalizeBusinessJoinCode(String raw) {
+  final value = raw.trim();
+  const prefix = 'BERBERIM:';
+  return value.toUpperCase().startsWith(prefix)
+      ? value.substring(prefix.length).trim().toUpperCase()
+      : value.toUpperCase();
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   const url = String.fromEnvironment('SUPABASE_URL');
@@ -877,7 +885,20 @@ class _BarberPageState extends State<BarberPage> {
       Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
         child: QrImageView(data: 'BERBERIM:${widget.business['join_code'] ?? ''}', version: QrVersions.auto, size: 210, backgroundColor: Colors.white)),
       const SizedBox(height: 12),
-      const Text('Müşterilerin bu QR kodu okutarak işletmene katılabilir.', textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 12)),
+      const Text('QR OKUTAMIYORSAN BU KODU KULLAN', textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.7)),
+      const SizedBox(height: 6),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(color: panelRaised, borderRadius: BorderRadius.circular(14), border: Border.all(color: border)),
+        child: SelectableText(
+          (widget.business['join_code'] ?? '').toString().toUpperCase(),
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: goldLight, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 2),
+        ),
+      ),
+      const SizedBox(height: 10),
+      const Text('Müşterilerin QR kodunu okutabilir veya yukarıdaki işletme kodunu uygulamaya elle girebilir.', textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 12, height: 1.4)),
     ])),
     const SizedBox(height: 14),
     AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1254,24 +1275,134 @@ class CustomerQrScannerPage extends StatefulWidget {
   @override State<CustomerQrScannerPage> createState() => _CustomerQrScannerPageState();
 }
 class _CustomerQrScannerPageState extends State<CustomerQrScannerPage> {
+  final codeController = TextEditingController();
   bool handled = false;
-  @override Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('İşletme QR kodunu okut')),
-    body: Stack(children: [
-      MobileScanner(onDetect: (capture) {
-        if (handled) return;
-        for (final barcode in capture.barcodes) {
-          final raw = barcode.rawValue?.trim();
-          if (raw == null || raw.isEmpty) continue;
-          handled = true;
-          final code = raw.startsWith('BERBERIM:') ? raw.substring(9).trim() : raw;
-          Navigator.of(context).pop(code);
-          return;
-        }
-      }),
-      Center(child: Container(width: 260, height: 260, decoration: BoxDecoration(border: Border.all(color: gold, width: 3), borderRadius: BorderRadius.circular(26)))),
-      const Positioned(left: 24, right: 24, bottom: 34, child: AppPanel(child: Text('İşletmenin yönetim panelinde gösterilen QR kodu çerçevenin içine al.', textAlign: TextAlign.center, style: TextStyle(color: ivory, height: 1.4)))),
-    ]),
+
+  @override
+  void dispose() {
+    codeController.dispose();
+    super.dispose();
+  }
+
+  void _returnCode(String raw) {
+    if (handled || !mounted) return;
+    final code = normalizeBusinessJoinCode(raw);
+    if (code.isEmpty) {
+      toast(context, 'İşletme kodunu gir veya QR kodunu okut');
+      return;
+    }
+    handled = true;
+    Navigator.of(context).pop(code);
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('İşletmeye katıl')),
+    body: SafeArea(
+      child: Column(
+        children: [
+          Expanded(
+            flex: 6,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                MobileScanner(
+                  onDetect: (capture) {
+                    if (handled) return;
+                    for (final barcode in capture.barcodes) {
+                      final raw = barcode.rawValue?.trim();
+                      if (raw == null || raw.isEmpty) continue;
+                      _returnCode(raw);
+                      return;
+                    }
+                  },
+                  errorBuilder: (context, error, child) => Container(
+                    color: panel,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(24),
+                    child: AppPanel(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.no_photography_outlined, color: gold, size: 34),
+                          const SizedBox(height: 12),
+                          const Text('Kamera başlatılamadı', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                          const SizedBox(height: 7),
+                          const Text(
+                            'Kamera iznini ve cihaz kamerasını kontrol et. Kameran çalışmıyorsa aşağıya işletme kodunu yazabilirsin.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: muted, fontSize: 12, height: 1.45),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(error.errorCode.toString(), textAlign: TextAlign.center, style: const TextStyle(color: muted, fontSize: 10)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  onDetectError: (error, stackTrace) {
+                    debugPrint('Berberim QR scan error: $error');
+                  },
+                ),
+                IgnorePointer(
+                  child: Center(
+                    child: Container(
+                      width: 250,
+                      height: 250,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: gold, width: 3),
+                        borderRadius: BorderRadius.circular(26),
+                      ),
+                    ),
+                  ),
+                ),
+                const Positioned(
+                  left: 20,
+                  right: 20,
+                  bottom: 18,
+                  child: Text(
+                    'İşletmenin QR kodunu çerçevenin içine al.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: ivory, fontWeight: FontWeight.w700, shadows: [Shadow(color: Colors.black, blurRadius: 8)]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AppPanel(
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Kameran çalışmıyor mu?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 5),
+                const Text('QR kodunun altındaki işletme kodunu buraya yazarak da katılabilirsin.', style: TextStyle(color: muted, fontSize: 12, height: 1.4)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: codeController,
+                  textCapitalization: TextCapitalization.characters,
+                  autocorrect: false,
+                  decoration: const InputDecoration(
+                    labelText: 'İşletme kodu',
+                    hintText: 'ÖRN. BERBERİM KODU',
+                    prefixIcon: Icon(Icons.key_rounded),
+                  ),
+                  onSubmitted: _returnCode,
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: handled ? null : () => _returnCode(codeController.text),
+                    icon: const Icon(Icons.login_rounded),
+                    label: const Text('Kod ile işletmeye katıl'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
   );
 }
 class CustomerProfilePage extends StatefulWidget {
@@ -1338,13 +1469,6 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
             ]));
           }).toList());
         }),
-        const SizedBox(height: 18),
-        const SectionHeading('Çalışan daveti'),
-        AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Bir işletmede çalışan olarak görev yapıyorsan, işletme sahibinin sana özel oluşturduğu davet kodunu buradan kabul edebilirsin.', style: TextStyle(color: muted, fontSize: 12, height: 1.45)),
-          const SizedBox(height: 12),
-          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EmployeeInvitePage())), icon: const Icon(Icons.badge_outlined), label: const Text('Çalışan davetini kabul et'))),
-        ])),
       ]);
     }),
   );
@@ -1808,61 +1932,120 @@ class _CustomerPageState extends State<CustomerPage>{
   final changed=await Navigator.of(context).push<bool>(MaterialPageRoute(builder:(_)=>const CustomerProfilePage()));
   if(changed==true&&mounted)setState(()=>memberships=_load());
  }
+ void _openBusiness(Map<String,dynamic> business){
+  Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CustomerBookingFlowPage(businesses:[business])));
+ }
+ Widget _businessCard(Map<String,dynamic> business,int index){
+  final name=(business['name']??'Berber dükkanı').toString();
+  return Padding(
+   padding:const EdgeInsets.only(bottom:12),
+   child:Material(
+    color:Colors.transparent,
+    child:InkWell(
+     borderRadius:BorderRadius.circular(25),
+     onTap:()=>_openBusiness(business),
+     child:Ink(
+      decoration:BoxDecoration(
+       borderRadius:BorderRadius.circular(25),
+       gradient:LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:index.isEven?const [Color(0xFF28251F),Color(0xFF1A1B20),Color(0xFF121317)]:const [Color(0xFF22262A),Color(0xFF1A1B20),Color(0xFF121317)]),
+       border:Border.all(color:gold.withValues(alpha:.28)),
+       boxShadow:[BoxShadow(color:Colors.black.withValues(alpha:.16),blurRadius:20,offset:const Offset(0,9))],
+      ),
+      child:Padding(
+       padding:const EdgeInsets.all(17),
+       child:Row(children:[
+        Container(width:58,height:58,decoration:BoxDecoration(borderRadius:BorderRadius.circular(19),gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[goldLight,gold]),boxShadow:[BoxShadow(color:gold.withValues(alpha:.15),blurRadius:16,offset:const Offset(0,6))]),child:const Icon(Icons.content_cut_rounded,color:ink,size:28)),
+        const SizedBox(width:14),
+        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+         Row(children:[Flexible(child:Text(name,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:16,fontWeight:FontWeight.w900,letterSpacing:-.25))),const SizedBox(width:6),const Icon(Icons.verified_rounded,color:goldLight,size:15)]),
+         const SizedBox(height:7),
+         Row(children:[Container(width:7,height:7,decoration:const BoxDecoration(color:Color(0xFF78C99A),shape:BoxShape.circle)),const SizedBox(width:6),const Text('ÜYELİĞİN AKTİF',style:TextStyle(color:Color(0xFFB8DCC5),fontSize:9,fontWeight:FontWeight.w900,letterSpacing:.8))]),
+         const SizedBox(height:7),
+         const Text('Bu dükkândan randevu al',style:TextStyle(color:muted,fontSize:11,fontWeight:FontWeight.w600)),
+        ])),
+        const SizedBox(width:8),
+        Container(width:38,height:38,decoration:BoxDecoration(color:gold.withValues(alpha:.13),borderRadius:BorderRadius.circular(13)),child:const Icon(Icons.arrow_forward_rounded,color:goldLight,size:20)),
+       ]),
+      ),
+     ),
+    ),
+   ),
+  );
+ }
  @override Widget build(BuildContext c)=>Scaffold(
-  appBar:AppBar(title:const Text('Berberim'),actions:[
-   IconButton(tooltip:'Randevularım',onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.event_note_rounded)),
-   notificationAction(context),
-   PopupMenuButton<String>(onSelected:(v){if(v=='profile')_profile();},itemBuilder:(_)=>const [
-    PopupMenuItem(value:'profile',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.person_outline_rounded),title:Text('Profilim'))),
-   ]),
-   IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded)),
-  ]),
+  appBar:AppBar(
+   title:Row(children:[Container(width:34,height:34,decoration:BoxDecoration(gradient:const LinearGradient(colors:[goldLight,gold]),borderRadius:BorderRadius.circular(11)),child:const Icon(Icons.content_cut_rounded,color:ink,size:19)),const SizedBox(width:10),const Text('Berberim',style:TextStyle(fontWeight:FontWeight.w900,letterSpacing:-.5))]),
+   actions:[
+    IconButton(tooltip:'Randevularım',onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.event_note_rounded)),
+    notificationAction(context),
+    PopupMenuButton<String>(onSelected:(v){if(v=='profile')_profile();},itemBuilder:(_)=>const [PopupMenuItem(value:'profile',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.person_outline_rounded),title:Text('Profilim')))]),
+    IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded)),
+   ],
+  ),
   body:FutureBuilder<List<Map<String,dynamic>>>(future:memberships,builder:(c,s){
    if(s.connectionState!=ConnectionState.done)return const LoadingPage();
    if(s.hasError)return ErrorPage(message:err(s.error!));
    final businesses=s.data??[];
-   return ListView(padding:const EdgeInsets.fromLTRB(18,14,18,28),children:[
-    Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(
-     borderRadius:BorderRadius.circular(22),
-     gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF28251F),Color(0xFF17191E),Color(0xFF0B0C0F)]),
-     border:Border.all(color:gold.withValues(alpha:.35))),
-     child:Row(children:[
-      const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-       Text('KENDİNE ZAMAN AYIR',style:TextStyle(color:goldLight,fontSize:10,letterSpacing:1.3,fontWeight:FontWeight.w900)),
-       SizedBox(height:9),Text('Bakım zamanın geldi.',style:TextStyle(fontSize:23,height:1.15,fontWeight:FontWeight.w900)),
-       SizedBox(height:7),Text('Randevunu ayrı ve kolay adımlarla oluştur.',style:TextStyle(color:muted,fontSize:11)),
+   return RefreshIndicator(
+    onRefresh:()async{setState(()=>memberships=_load());await memberships;},
+    child:ListView(
+     physics:const AlwaysScrollableScrollPhysics(),
+     padding:const EdgeInsets.fromLTRB(18,10,18,30),
+     children:[
+      Container(
+       padding:const EdgeInsets.fromLTRB(21,21,18,20),
+       decoration:BoxDecoration(borderRadius:BorderRadius.circular(28),gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF383126),Color(0xFF202127),Color(0xFF111216)]),border:Border.all(color:gold.withValues(alpha:.34)),boxShadow:[BoxShadow(color:gold.withValues(alpha:.07),blurRadius:28,offset:const Offset(0,12))]),
+       child:Stack(children:[
+        Positioned(right:-12,top:-17,child:Icon(Icons.content_cut_rounded,size:132,color:gold.withValues(alpha:.07))),
+        Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+         Container(padding:const EdgeInsets.symmetric(horizontal:11,vertical:7),decoration:BoxDecoration(color:gold.withValues(alpha:.13),borderRadius:BorderRadius.circular(30),border:Border.all(color:gold.withValues(alpha:.25))),child:const Text('BAKIMININ YENİ ADRESİ',style:TextStyle(color:goldLight,fontSize:9,fontWeight:FontWeight.w900,letterSpacing:1.25))),
+         const SizedBox(height:16),
+         const Text('Tarzını tamamla.\nBerberini seç.',style:TextStyle(fontSize:27,height:1.12,fontWeight:FontWeight.w900,letterSpacing:-.9)),
+         const SizedBox(height:9),
+         const Text('Sana özel randevu deneyimi için bağlı olduğun dükkânı seç.',style:TextStyle(color:Color(0xFFC0C0C3),fontSize:12,height:1.5)),
+         const SizedBox(height:18),
+         Row(children:[const Icon(Icons.schedule_rounded,color:goldLight,size:16),const SizedBox(width:7),const Text('Kolay seçim  ·  Hızlı randevu',style:TextStyle(color:goldLight,fontSize:10,fontWeight:FontWeight.w800))]),
+        ]),
+       ]),
+      ),
+      const SizedBox(height:25),
+      Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
+       const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text('SENİN DÜKKÂNLARIN',style:TextStyle(color:gold,fontSize:9,fontWeight:FontWeight.w900,letterSpacing:1.3)),
+        SizedBox(height:6),
+        Text('Dükkânını seç',style:TextStyle(fontSize:22,fontWeight:FontWeight.w900,letterSpacing:-.55)),
+        SizedBox(height:4),
+        Text('Randevu almak istediğin berberi seç.',style:TextStyle(color:muted,fontSize:11)),
+       ])),
+       Container(padding:const EdgeInsets.symmetric(horizontal:11,vertical:7),decoration:BoxDecoration(color:panelRaised,borderRadius:BorderRadius.circular(13),border:Border.all(color:border)),child:Text('${businesses.length} DÜKKÂN',style:const TextStyle(color:goldLight,fontSize:9,fontWeight:FontWeight.w900,letterSpacing:.5))),
+      ]),
+      const SizedBox(height:14),
+      if(businesses.isEmpty)
+       AppPanel(padding:const EdgeInsets.fromLTRB(18,21,18,18),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+        Container(height:104,decoration:BoxDecoration(borderRadius:BorderRadius.circular(21),gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF302B22),Color(0xFF1B1C21)])),child:const Center(child:Icon(Icons.storefront_rounded,color:goldLight,size:46))),
+        const SizedBox(height:17),
+        const Text('İlk berberini ekle',textAlign:TextAlign.center,style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),
+        const SizedBox(height:7),
+        const Text('Dükkândaki QR kodu okut veya işletme kodunu gir. Berberinle eşleş, randevunu buradan yönet.',textAlign:TextAlign.center,style:TextStyle(color:muted,fontSize:12,height:1.5)),
+        const SizedBox(height:17),
+        SizedBox(height:50,child:ElevatedButton.icon(onPressed:_join,icon:const Icon(Icons.qr_code_scanner_rounded),label:const Text('DÜKKÂNIMI EKLE'))),
+       ]))
+      else ...[
+       ...businesses.asMap().entries.map((entry)=>_businessCard(entry.value,entry.key)),
+       OutlinedButton.icon(onPressed:_join,icon:const Icon(Icons.add_business_rounded,size:18),label:const Text('Başka bir dükkân ekle'),style:OutlinedButton.styleFrom(minimumSize:const Size.fromHeight(48),foregroundColor:goldLight,side:BorderSide(color:gold.withValues(alpha:.35)),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(16)))),
+      ],
+      const SizedBox(height:23),
+      AppPanel(padding:const EdgeInsets.all(16),child:Row(children:[
+       Container(width:44,height:44,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(14)),child:const Icon(Icons.calendar_month_rounded,color:gold,size:22)),
+       const SizedBox(width:12),
+       const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Randevularım',style:TextStyle(fontWeight:FontWeight.w900,fontSize:14)),SizedBox(height:3),Text('Yaklaşan ve geçmiş randevularını takip et.',style:TextStyle(color:muted,fontSize:10))])),
+       IconButton(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.arrow_forward_rounded,color:gold)),
       ])),
-      const SizedBox(width:8),Container(width:66,height:66,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(20)),child:const Icon(Icons.content_cut_rounded,color:goldLight,size:34)),
-     ]),
-    ),
-    const SizedBox(height:16),
-    AppPanel(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-     Row(children:[const Expanded(child:SectionHeading('İşletmelerim')),StatusTag('${businesses.length} AKTİF')]),
-     if(businesses.isEmpty) ...[
-      const Text('Randevu alabilmek için önce işletmenin QR kodunu okut.',style:TextStyle(color:muted,fontSize:12)),
-      const SizedBox(height:12),SizedBox(height:48,child:ElevatedButton.icon(onPressed:_join,icon:const Icon(Icons.qr_code_scanner_rounded),label:const Text('İşletme QR kodunu okut'))),
-     ]else ...[
-      ...businesses.map((b)=>Padding(padding:const EdgeInsets.only(bottom:8),child:Row(children:[const Icon(Icons.storefront_rounded,color:gold,size:18),const SizedBox(width:9),Expanded(child:Text((b['name']??'İşletme').toString(),style:const TextStyle(fontWeight:FontWeight.w700)))]))),
-      Align(alignment:Alignment.centerLeft,child:TextButton.icon(onPressed:_profile,icon:const Icon(Icons.manage_accounts_outlined),label:const Text('Üyeliği yönet'))),
+      const SizedBox(height:13),
+      const Center(child:Text('BERBERİM  ·  BAKIMIN SANA ÖZEL',style:TextStyle(color:Color(0xFF666A72),fontSize:9,fontWeight:FontWeight.w800,letterSpacing:1.1))),
      ],
-    ])),
-    const SizedBox(height:14),
-    AppPanel(padding:const EdgeInsets.all(17),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-     const Text('Yeni randevu',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),
-     const SizedBox(height:5),const Text('Her seçim ayrı bir ekranda açılır. Uzun form yok.',style:TextStyle(color:muted,fontSize:12)),
-     const SizedBox(height:14),
-     SizedBox(height:52,child:ElevatedButton.icon(
-      onPressed:businesses.isEmpty?null:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CustomerBookingFlowPage(businesses:businesses))),
-      icon:const Icon(Icons.arrow_forward_rounded),label:const Text('Randevu oluşturmaya başla'),
-     )),
-    ])),
-    const SizedBox(height:12),
-    AppPanel(padding:const EdgeInsets.all(14),child:Row(children:[
-     const Icon(Icons.calendar_month_rounded,color:gold,size:25),const SizedBox(width:11),
-     const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Randevularım',style:TextStyle(fontWeight:FontWeight.w800,fontSize:14)),SizedBox(height:3),Text('Yaklaşan ve geçmiş randevuların.',style:TextStyle(color:muted,fontSize:11))])),
-     IconButton(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.arrow_forward_ios_rounded,size:17,color:gold)),
-    ])),
-   ]);
+    ),
+   );
   }),
  );
 }
