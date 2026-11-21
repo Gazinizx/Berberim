@@ -21,6 +21,42 @@ jobs:
       - name: Prepare iOS platform
         run: |
           if [ ! -d ios ]; then flutter create --platforms=ios --org com.gazinizx --project-name=berberim .; fi
+      - name: Set iOS deployment target
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          podfile = Path("ios/Podfile")
+          pod_text = podfile.read_text()
+          pod_text, count = re.subn(
+              r"^\\s*#?\\s*platform :ios,.*$",
+              "platform :ios, '15.5'",
+              pod_text,
+              count=1,
+              flags=re.MULTILINE,
+          )
+          if count == 0:
+              pod_text = "platform :ios, '15.5'\\n" + pod_text
+          podfile.write_text(pod_text)
+
+          project = Path("ios/Runner.xcodeproj/project.pbxproj")
+          project_text = project.read_text()
+          project_text, count = re.subn(
+              r"IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;",
+              "IPHONEOS_DEPLOYMENT_TARGET = 15.5;",
+              project_text,
+          )
+          if count == 0:
+              raise SystemExit("No iOS deployment target found in Xcode project")
+          project.write_text(project_text)
+
+          if "platform :ios, '15.5'" not in podfile.read_text():
+              raise SystemExit("Podfile iOS platform was not raised to 15.5")
+          if "IPHONEOS_DEPLOYMENT_TARGET = 15.5;" not in project.read_text():
+              raise SystemExit("Xcode iOS deployment target was not raised to 15.5")
+          print(f"iOS deployment target set to 15.5 in Podfile and {count} Xcode build settings.")
+          PY
       - name: Configure Berberim auth callback
         run: |
           python3 - <<'PY'
