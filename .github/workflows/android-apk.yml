@@ -46,9 +46,9 @@ jobs:
           text = settings.read_text()
           if "com.google.gms.google-services" not in text:
               if settings.suffix == ".kts":
-                  declaration = '    id("com.google.gms.google-services") version "4.4.4" apply false\n'
+                  declaration = '    id("com.google.gms.google-services") version "4.6.0" apply false\n'
               else:
-                  declaration = "    id 'com.google.gms.google-services' version '4.4.4' apply false\n"
+                  declaration = "    id 'com.google.gms.google-services' version '4.6.0' apply false\n"
               text = text.replace("plugins {", "plugins {\n" + declaration, 1)
               settings.write_text(text)
 
@@ -65,6 +65,13 @@ jobs:
               if marker not in text:
                   raise SystemExit("Android compileOptions block was not found")
               text = text.replace(marker, marker + "\n        isCoreLibraryDesugaringEnabled = true", 1) if app_gradle.suffix == ".kts" else text.replace(marker, marker + "\n        coreLibraryDesugaringEnabled true", 1)
+
+          if app_gradle.suffix == ".kts":
+              text = text.replace("minSdk = flutter.minSdkVersion", "minSdk = maxOf(flutter.minSdkVersion, 23)")
+              text = text.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = maxOf(flutter.compileSdkVersion, 35)")
+          else:
+              text = text.replace("minSdkVersion flutter.minSdkVersion", "minSdkVersion Math.max(flutter.minSdkVersion, 23)")
+              text = text.replace("compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion Math.max(flutter.compileSdkVersion, 35)")
 
           if "desugar_jdk_libs" not in text:
               if app_gradle.suffix == ".kts":
