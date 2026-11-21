@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:berberim/push_notifications.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -26,6 +29,7 @@ String normalizeBusinessJoinCode(String raw) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await PushNotifications.initialize();
   const url = String.fromEnvironment('SUPABASE_URL');
   const key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
   if (url.isNotEmpty && key.isNotEmpty) {
@@ -425,6 +429,7 @@ class _AuthGateState extends State<AuthGate> {
       }
       if (_loadedUid != user.id) {
         _loadedUid = user.id;
+        unawaited(PushNotifications.register(supabase: sb, userId: user.id));
         _profileFuture = _loadProfile(user.id);
         _businessesFuture = null;
       }
@@ -477,7 +482,7 @@ class BlockedPage extends StatelessWidget {
       const SizedBox(height: 9),
       const Text('Hesabın yönetim tarafından geçici olarak kısıtlandı. Detaylar için işletme yönetimiyle iletişime geçebilirsin.', textAlign: TextAlign.center, style: TextStyle(color: muted, height: 1.5)),
       const SizedBox(height: 22),
-      SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: () => sb.auth.signOut(), icon: const Icon(Icons.logout_rounded), label: const Text('Çıkış yap'))),
+      SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: () async { await PushNotifications.unregister(sb); await sb.auth.signOut(); }, icon: const Icon(Icons.logout_rounded), label: const Text('Çıkış yap'))),
     ]))),
   )));
 }
