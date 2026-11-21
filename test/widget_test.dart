@@ -44,11 +44,11 @@ void main() {
     ];
 
     expect(
-      filterCustomerAppointments(rows, 'completed').map((row) => row['id']),
+      filterCustomerAppointments(rows, 'completed').map((row) => row['id']).toList(),
       ['done'],
     );
     expect(
-      filterCustomerAppointments(rows, 'cancelled').map((row) => row['id']),
+      filterCustomerAppointments(rows, 'cancelled').map((row) => row['id']).toList(),
       ['cancelled', 'no-show'],
     );
   });
