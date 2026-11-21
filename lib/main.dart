@@ -1843,7 +1843,7 @@ class _CustomerPageState extends State<CustomerPage>{
       const SizedBox(height:12),SizedBox(height:48,child:ElevatedButton.icon(onPressed:_join,icon:const Icon(Icons.qr_code_scanner_rounded),label:const Text('İşletme QR kodunu okut'))),
      ]else ...[
       ...businesses.map((b)=>Padding(padding:const EdgeInsets.only(bottom:8),child:Row(children:[const Icon(Icons.storefront_rounded,color:gold,size:18),const SizedBox(width:9),Expanded(child:Text((b['name']??'İşletme').toString(),style:const TextStyle(fontWeight:FontWeight.w700)))]))),
-      Row(children:[Expanded(child:TextButton.icon(onPressed:_profile,icon:const Icon(Icons.manage_accounts_outlined),label:const Text('Üyelikleri yönet'))),Expanded(child:TextButton.icon(onPressed:_join,icon:const Icon(Icons.add_rounded),label:const Text('İşletme ekle')))]),
+      Align(alignment:Alignment.centerLeft,child:TextButton.icon(onPressed:_profile,icon:const Icon(Icons.manage_accounts_outlined),label:const Text('Üyeliği yönet'))),
      ],
     ])),
     const SizedBox(height:14),
