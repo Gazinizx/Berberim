@@ -66,11 +66,16 @@ jobs:
                   raise SystemExit("Android compileOptions block was not found")
               text = text.replace(marker, marker + "\n        isCoreLibraryDesugaringEnabled = true", 1) if app_gradle.suffix == ".kts" else text.replace(marker, marker + "\n        coreLibraryDesugaringEnabled true", 1)
 
+          if "multiDexEnabled" not in text:
+              if app_gradle.suffix == ".kts":
+                  text = text.replace("defaultConfig {", "defaultConfig {\n        multiDexEnabled = true", 1)
+              else:
+                  text = text.replace("defaultConfig {", "defaultConfig {\n        multiDexEnabled true", 1)
           if app_gradle.suffix == ".kts":
-              text = text.replace("minSdk = flutter.minSdkVersion", "minSdk = maxOf(flutter.minSdkVersion, 23)")
+              text = text.replace("minSdk = flutter.minSdkVersion", "minSdk = maxOf(flutter.minSdkVersion, 24)")
               text = text.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = maxOf(flutter.compileSdkVersion, 35)")
           else:
-              text = text.replace("minSdkVersion flutter.minSdkVersion", "minSdkVersion Math.max(flutter.minSdkVersion, 23)")
+              text = text.replace("minSdkVersion flutter.minSdkVersion", "minSdkVersion Math.max(flutter.minSdkVersion, 24)")
               text = text.replace("compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion Math.max(flutter.compileSdkVersion, 35)")
 
           if "desugar_jdk_libs" not in text:
