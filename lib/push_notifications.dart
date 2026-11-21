@@ -10,7 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 @pragma('vm:entry-point')
 Future<void> berberimFirebaseBackgroundHandler(RemoteMessage message) async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (Platform.isAndroid && Firebase.apps.isEmpty) {
+  if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp();
   }
 }
@@ -37,7 +37,7 @@ class PushNotifications {
   static StreamSubscription<String>? _registrationSubscription;
 
   static Future<void> initialize() async {
-    if (!Platform.isAndroid || _initialized) return;
+    if ((!Platform.isAndroid && !Platform.isIOS) || _initialized) return;
 
     try {
       await Firebase.initializeApp();
@@ -45,17 +45,25 @@ class PushNotifications {
         berberimFirebaseBackgroundHandler,
       );
 
-      await _local.initialize(
-        settings: const InitializationSettings(
-          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-        ),
-      );
+      if (Platform.isAndroid) {
+        await _local.initialize(
+          settings: const InitializationSettings(
+            android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          ),
+        );
 
-      final android = _local.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
-      await android?.createNotificationChannel(_channel);
+        final android = _local.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+        await android?.createNotificationChannel(_channel);
+        FirebaseMessaging.onMessage.listen(_showForegroundNotification);
+      } else {
+        await _messaging.setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      }
 
-      FirebaseMessaging.onMessage.listen(_showForegroundNotification);
       _initialized = true;
     } catch (error) {
       debugPrint('Berberim push initialization failed: $error');
@@ -66,7 +74,7 @@ class PushNotifications {
     required SupabaseClient supabase,
     required String userId,
   }) async {
-    if (!Platform.isAndroid || !_initialized) return;
+    if ((!Platform.isAndroid && !Platform.isIOS) || !_initialized) return;
 
     _supabase = supabase;
     _userId = userId;
@@ -79,6 +87,20 @@ class PushNotifications {
       );
       if (permission.authorizationStatus == AuthorizationStatus.denied) {
         return;
+      }
+
+      if (Platform.isIOS) {
+        String? apnsToken = await _messaging.getAPNSToken();
+        for (var attempt = 0; apnsToken == null && attempt < 20; attempt++) {
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+          apnsToken = await _messaging.getAPNSToken();
+        }
+        if (apnsToken == null) {
+          debugPrint(
+            'Berberim push registration waiting: APNs token is not available.',
+          );
+          return;
+        }
       }
 
       await _registrationSubscription?.cancel();
@@ -102,7 +124,7 @@ class PushNotifications {
         'register_push_fid',
         params: {
           'p_fid': fid,
-          'p_platform': 'android',
+          'p_platform': Platform.isIOS ? 'ios' : 'android',
         },
       );
     } catch (error) {
