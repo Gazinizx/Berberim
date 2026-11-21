@@ -16,6 +16,11 @@ const border = Color(0xFF30333A);
 const panelRaised = Color(0xFF1D2026);
 const goldShadow = Color(0x26D8B36A);
 final sb = Supabase.instance.client;
+
+Future<void> signOutBerberim() async {
+  await PushNotifications.unregister(sb);
+  await sb.auth.signOut();
+}
 String get uid => sb.auth.currentUser!.id;
 String err(Object e) => e.toString().replaceFirst('Exception: ', '').replaceFirst('PostgrestException(message: ', '');
 
@@ -482,7 +487,7 @@ class BlockedPage extends StatelessWidget {
       const SizedBox(height: 9),
       const Text('Hesabın yönetim tarafından geçici olarak kısıtlandı. Detaylar için işletme yönetimiyle iletişime geçebilirsin.', textAlign: TextAlign.center, style: TextStyle(color: muted, height: 1.5)),
       const SizedBox(height: 22),
-      SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: () async { await PushNotifications.unregister(sb); await sb.auth.signOut(); }, icon: const Icon(Icons.logout_rounded), label: const Text('Çıkış yap'))),
+      SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: signOutBerberim, icon: const Icon(Icons.logout_rounded), label: const Text('Çıkış yap'))),
     ]))),
   )));
 }
@@ -564,7 +569,7 @@ class _ProfilePageState extends State<ProfilePage>{
  final name=TextEditingController(),phone=TextEditingController(),shop=TextEditingController(),address=TextEditingController();bool busy=false;String message='';
  Future<void> save()async{setState(()=>busy=true);message='';try{if(name.text.trim().length<2)throw Exception('Ad soyad en az 2 karakter olmalı');if(shop.text.trim().length<2)throw Exception('İşletme adı en az 2 karakter olmalı');await sb.from('profiles').update({'full_name':name.text.trim(),'phone':phone.text.trim()}).eq('id',uid);await sb.rpc('create_business_application',params:{'p_name':shop.text.trim(),'p_address':address.text.trim().isEmpty?null:address.text.trim()});}catch(e){message=err(e);}if(mounted){setState(()=>busy=false);if(message.isEmpty)Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder:(_)=>const AuthGate()),(r)=>false);}}
  @override Widget build(BuildContext c)=>Scaffold(
-  appBar:AppBar(title:const Text('İşletme başvurusu'),actions:[IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),
+  appBar:AppBar(title:const Text('İşletme başvurusu'),actions:[IconButton(tooltip:'Çıkış yap',onPressed:()=>signOutBerberim(),icon:const Icon(Icons.logout_rounded))]),
   body:ListView(padding:const EdgeInsets.fromLTRB(20,12,20,30),children:[
    const ScreenHeading(eyebrow:'BERBERİM İŞ ORTAĞI',title:'İşletmeni tanıtalım',subtitle:'Bilgilerini paylaş, başvurunu inceleyelim. Onaydan sonra işletme panelin açılacak.',icon:Icons.storefront_rounded),
    AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
@@ -595,7 +600,7 @@ class PendingPage extends StatelessWidget {const PendingPage({super.key,required
   final rejected=status=='rejected', inactive=status=='inactive';
   final title=rejected?'Başvurun reddedildi':inactive?'İşletmen devre dışı':'Başvurun inceleniyor';
   final description=status=='pending'?'Başvurunu aldık. Yönetici incelemesi tamamlandığında işletme panelin otomatik olarak açılacak.':'Başvuru durumunla ilgili detaylı bilgi almak için yönetimle iletişime geçebilirsin.';
-  return Scaffold(appBar:AppBar(title:const Text('Başvuru durumu'),actions:[IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),body:Center(child:SingleChildScrollView(padding:const EdgeInsets.all(24),child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:440),child:AppPanel(padding:const EdgeInsets.all(26),child:Column(mainAxisSize:MainAxisSize.min,children:[
+  return Scaffold(appBar:AppBar(title:const Text('Başvuru durumu'),actions:[IconButton(onPressed:()=>signOutBerberim(),icon:const Icon(Icons.logout_rounded))]),body:Center(child:SingleChildScrollView(padding:const EdgeInsets.all(24),child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:440),child:AppPanel(padding:const EdgeInsets.all(26),child:Column(mainAxisSize:MainAxisSize.min,children:[
    Container(width:76,height:76,decoration:BoxDecoration(color:(rejected?Colors.redAccent:gold).withValues(alpha:.12),borderRadius:BorderRadius.circular(24)),child:Icon(rejected?Icons.info_outline_rounded:inactive?Icons.pause_circle_outline_rounded:Icons.hourglass_top_rounded,color:rejected?Colors.redAccent:gold,size:38)),
    const SizedBox(height:22),
    StatusTag(rejected?'REDDEDİLDİ':inactive?'PASİF':'İNCELEMEDE',color:rejected?Colors.redAccent:gold),
@@ -694,7 +699,7 @@ class _AdminPageState extends State<AdminPage>{
  @override Widget build(BuildContext c){
   final pages=[dashboard(),businesses(),users(),appointments()];
   return Scaffold(
-   appBar:AppBar(title:const Text('Yönetim merkezi'),actions:[IconButton(tooltip:'Yenile',onPressed:()=>setState((){}),icon:const Icon(Icons.refresh_rounded)),IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),
+   appBar:AppBar(title:const Text('Yönetim merkezi'),actions:[IconButton(tooltip:'Yenile',onPressed:()=>setState((){}),icon:const Icon(Icons.refresh_rounded)),IconButton(tooltip:'Çıkış yap',onPressed:()=>signOutBerberim(),icon:const Icon(Icons.logout_rounded))]),
    body:pages[tab],
    bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const [
     NavigationDestination(icon:Icon(Icons.dashboard_outlined),selectedIcon:Icon(Icons.dashboard_rounded),label:'Genel'),
@@ -1072,7 +1077,7 @@ class _BarberPageState extends State<BarberPage> {
     appBar: AppBar(title: Text(widget.business['name'] ?? 'İşletme paneli'), actions: [
       IconButton(tooltip: 'Tüm randevular', onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BusinessOverviewPage(business: widget.business))), icon: const Icon(Icons.dashboard_outlined)),
       notificationAction(context),
-      IconButton(tooltip: 'Çıkış yap', onPressed: () => sb.auth.signOut(), icon: const Icon(Icons.logout_rounded)),
+      IconButton(tooltip: 'Çıkış yap', onPressed: () => signOutBerberim(), icon: const Icon(Icons.logout_rounded)),
     ]),
     body: IndexedStack(index: tab, children: [
       _homePage(), _appointmentsPage(), _employeesPage(), _servicesPage(), _settingsPage(),
@@ -1230,7 +1235,7 @@ class _EmployeePageState extends State<EmployeePage> {
     appBar: AppBar(title: Text(widget.employee['businesses']?['name'] ?? 'Çalışan paneli'), actions: [
       notificationAction(context),
       IconButton(tooltip: 'Yenile', onPressed: refresh, icon: const Icon(Icons.refresh_rounded)),
-      IconButton(tooltip: 'Çıkış yap', onPressed: () => sb.auth.signOut(), icon: const Icon(Icons.logout_rounded)),
+      IconButton(tooltip: 'Çıkış yap', onPressed: () => signOutBerberim(), icon: const Icon(Icons.logout_rounded)),
     ]),
     body: FutureBuilder<List<Map<String, dynamic>>>(future: appointmentsFuture, builder: (context, snap) {
       if (snap.connectionState != ConnectionState.done) return const LoadingPage();
@@ -1984,7 +1989,7 @@ class _CustomerPageState extends State<CustomerPage>{
     IconButton(tooltip:'Randevularım',onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.event_note_rounded)),
     notificationAction(context),
     PopupMenuButton<String>(onSelected:(v){if(v=='profile')_profile();},itemBuilder:(_)=>const [PopupMenuItem(value:'profile',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.person_outline_rounded),title:Text('Profilim')))]),
-    IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded)),
+    IconButton(tooltip:'Çıkış yap',onPressed:()=>signOutBerberim(),icon:const Icon(Icons.logout_rounded)),
    ],
   ),
   body:FutureBuilder<List<Map<String,dynamic>>>(future:memberships,builder:(c,s){
