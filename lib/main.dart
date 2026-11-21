@@ -16,6 +16,14 @@ final sb = Supabase.instance.client;
 String get uid => sb.auth.currentUser!.id;
 String err(Object e) => e.toString().replaceFirst('Exception: ', '').replaceFirst('PostgrestException(message: ', '');
 
+String normalizeBusinessJoinCode(String raw) {
+  final value = raw.trim();
+  const prefix = 'BERBERIM:';
+  return value.toUpperCase().startsWith(prefix)
+      ? value.substring(prefix.length).trim().toUpperCase()
+      : value.toUpperCase();
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   const url = String.fromEnvironment('SUPABASE_URL');
@@ -1254,24 +1262,134 @@ class CustomerQrScannerPage extends StatefulWidget {
   @override State<CustomerQrScannerPage> createState() => _CustomerQrScannerPageState();
 }
 class _CustomerQrScannerPageState extends State<CustomerQrScannerPage> {
+  final codeController = TextEditingController();
   bool handled = false;
-  @override Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('İşletme QR kodunu okut')),
-    body: Stack(children: [
-      MobileScanner(onDetect: (capture) {
-        if (handled) return;
-        for (final barcode in capture.barcodes) {
-          final raw = barcode.rawValue?.trim();
-          if (raw == null || raw.isEmpty) continue;
-          handled = true;
-          final code = raw.startsWith('BERBERIM:') ? raw.substring(9).trim() : raw;
-          Navigator.of(context).pop(code);
-          return;
-        }
-      }),
-      Center(child: Container(width: 260, height: 260, decoration: BoxDecoration(border: Border.all(color: gold, width: 3), borderRadius: BorderRadius.circular(26)))),
-      const Positioned(left: 24, right: 24, bottom: 34, child: AppPanel(child: Text('İşletmenin yönetim panelinde gösterilen QR kodu çerçevenin içine al.', textAlign: TextAlign.center, style: TextStyle(color: ivory, height: 1.4)))),
-    ]),
+
+  @override
+  void dispose() {
+    codeController.dispose();
+    super.dispose();
+  }
+
+  void _returnCode(String raw) {
+    if (handled || !mounted) return;
+    final code = normalizeBusinessJoinCode(raw);
+    if (code.isEmpty) {
+      toast(context, 'İşletme kodunu gir veya QR kodunu okut');
+      return;
+    }
+    handled = true;
+    Navigator.of(context).pop(code);
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('İşletmeye katıl')),
+    body: SafeArea(
+      child: Column(
+        children: [
+          Expanded(
+            flex: 6,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                MobileScanner(
+                  onDetect: (capture) {
+                    if (handled) return;
+                    for (final barcode in capture.barcodes) {
+                      final raw = barcode.rawValue?.trim();
+                      if (raw == null || raw.isEmpty) continue;
+                      _returnCode(raw);
+                      return;
+                    }
+                  },
+                  errorBuilder: (context, error, child) => Container(
+                    color: panel,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(24),
+                    child: AppPanel(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.no_photography_outlined, color: gold, size: 34),
+                          const SizedBox(height: 12),
+                          const Text('Kamera başlatılamadı', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                          const SizedBox(height: 7),
+                          const Text(
+                            'Kamera iznini ve cihaz kamerasını kontrol et. Kameran çalışmıyorsa aşağıya işletme kodunu yazabilirsin.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: muted, fontSize: 12, height: 1.45),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(error.errorCode.toString(), textAlign: TextAlign.center, style: const TextStyle(color: muted, fontSize: 10)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  onDetectError: (error, stackTrace) {
+                    debugPrint('Berberim QR scan error: $error');
+                  },
+                ),
+                IgnorePointer(
+                  child: Center(
+                    child: Container(
+                      width: 250,
+                      height: 250,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: gold, width: 3),
+                        borderRadius: BorderRadius.circular(26),
+                      ),
+                    ),
+                  ),
+                ),
+                const Positioned(
+                  left: 20,
+                  right: 20,
+                  bottom: 18,
+                  child: Text(
+                    'İşletmenin QR kodunu çerçevenin içine al.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: ivory, fontWeight: FontWeight.w700, shadows: [Shadow(color: Colors.black, blurRadius: 8)]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AppPanel(
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Kameran çalışmıyor mu?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 5),
+                const Text('QR kodunun altındaki işletme kodunu buraya yazarak da katılabilirsin.', style: TextStyle(color: muted, fontSize: 12, height: 1.4)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: codeController,
+                  textCapitalization: TextCapitalization.characters,
+                  autocorrect: false,
+                  decoration: const InputDecoration(
+                    labelText: 'İşletme kodu',
+                    hintText: 'ÖRN. BERBERİM KODU',
+                    prefixIcon: Icon(Icons.key_rounded),
+                  ),
+                  onSubmitted: _returnCode,
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: handled ? null : () => _returnCode(codeController.text),
+                    icon: const Icon(Icons.login_rounded),
+                    label: const Text('Kod ile işletmeye katıl'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
   );
 }
 class CustomerProfilePage extends StatefulWidget {
@@ -1338,13 +1456,6 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
             ]));
           }).toList());
         }),
-        const SizedBox(height: 18),
-        const SectionHeading('Çalışan daveti'),
-        AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Bir işletmede çalışan olarak görev yapıyorsan, işletme sahibinin sana özel oluşturduğu davet kodunu buradan kabul edebilirsin.', style: TextStyle(color: muted, fontSize: 12, height: 1.45)),
-          const SizedBox(height: 12),
-          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EmployeeInvitePage())), icon: const Icon(Icons.badge_outlined), label: const Text('Çalışan davetini kabul et'))),
-        ])),
       ]);
     }),
   );
