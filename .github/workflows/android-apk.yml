@@ -26,6 +26,76 @@ jobs:
       - name: Prepare Android platform
         run: |
           if [ ! -d android ]; then flutter create --platforms=android --org com.gazinizx --project-name berberim .; fi
+      - name: Configure Firebase and Android notifications
+        run: |
+          set -euo pipefail
+          test -f firebase/google-services.json
+          cp firebase/google-services.json android/app/google-services.json
+          python3 - <<'PY'
+          from pathlib import Path
+
+          settings = Path("android/settings.gradle.kts")
+          if not settings.exists():
+              settings = Path("android/settings.gradle")
+          app_gradle = Path("android/app/build.gradle.kts")
+          if not app_gradle.exists():
+              app_gradle = Path("android/app/build.gradle")
+          if not settings.exists() or not app_gradle.exists():
+              raise SystemExit("Generated Android Gradle files were not found")
+
+          text = settings.read_text()
+          if "com.google.gms.google-services" not in text:
+              if settings.suffix == ".kts":
+                  declaration = '    id("com.google.gms.google-services") version "4.4.4" apply false\n'
+              else:
+                  declaration = "    id 'com.google.gms.google-services' version '4.4.4' apply false\n"
+              text = text.replace("plugins {", "plugins {\n" + declaration, 1)
+              settings.write_text(text)
+
+          text = app_gradle.read_text()
+          if "com.google.gms.google-services" not in text:
+              if app_gradle.suffix == ".kts":
+                  declaration = '    id("com.google.gms.google-services")\n'
+              else:
+                  declaration = "    id 'com.google.gms.google-services'\n"
+              text = text.replace("plugins {", "plugins {\n" + declaration, 1)
+
+          if "isCoreLibraryDesugaringEnabled" not in text and "coreLibraryDesugaringEnabled" not in text:
+              marker = "compileOptions {"
+              if marker not in text:
+                  raise SystemExit("Android compileOptions block was not found")
+              text = text.replace(marker, marker + "\n        isCoreLibraryDesugaringEnabled = true", 1) if app_gradle.suffix == ".kts" else text.replace(marker, marker + "\n        coreLibraryDesugaringEnabled true", 1)
+
+          if "desugar_jdk_libs" not in text:
+              if app_gradle.suffix == ".kts":
+                  text += '\n\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")\n}\n'
+              else:
+                  text += "\n\ndependencies {\n    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'\n}\n"
+          app_gradle.write_text(text)
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          text = manifest.read_text()
+          permission = '<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>'
+          if "android.permission.POST_NOTIFICATIONS" not in text:
+              point = text.find("<application")
+              if point < 0:
+                  raise SystemExit("Android application tag was not found")
+              text = text[:point] + permission + "\n    " + text[point:]
+
+          metadata = [
+              '<meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="berberim_notifications" />',
+              '<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_launcher" />',
+          ]
+          point = text.find("<application")
+          close = text.find(">", point)
+          for item in metadata:
+              marker = item.split('"')[1]
+              if marker not in text:
+                  text = text[:close + 1] + "\n            " + item + text[close + 1:]
+                  close = text.find(">", point)
+          manifest.write_text(text)
+          print("Firebase Android configuration and notification channel verified.")
+          PY
       - name: Set Android app display name
         run: |
           python3 - <<'PY'
