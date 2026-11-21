@@ -97,14 +97,12 @@ class PushNotifications {
     final userId = _userId;
     if (client == null || userId == null) return;
 
-    await client.from('push_tokens').upsert(
-      {
-        'user_id': userId,
-        'fid': fid,
-        'platform': 'android',
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
+    await client.rpc(
+      'register_push_fid',
+      params: {
+        'p_fid': fid,
+        'p_platform': 'android',
       },
-      onConflict: 'user_id,fid',
     );
   }
 
@@ -115,11 +113,10 @@ class PushNotifications {
     try {
       final fid = _currentFid;
       if (fid != null) {
-        await supabase
-            .from('push_tokens')
-            .delete()
-            .eq('user_id', userId)
-            .eq('fid', fid);
+        await supabase.rpc(
+          'unregister_push_fid',
+          params: {'p_fid': fid},
+        );
       }
     } catch (error) {
       debugPrint('Berberim push token cleanup failed: $error');
