@@ -1244,7 +1244,7 @@ class _EmployeePageState extends State<EmployeePage> {
 class EmployeeInvitePage extends StatefulWidget { const EmployeeInvitePage({super.key}); @override State<EmployeeInvitePage> createState()=>_EmployeeInvitePageState(); }
 class _EmployeeInvitePageState extends State<EmployeeInvitePage>{
  final code=TextEditingController(); bool busy=false;
- Future<void> claim()async{if(code.text.trim().isEmpty){toast(context,'Davet kodunu gir');return;}setState(()=>busy=true);try{await sb.rpc('claim_employee_invite',params:{'p_code':code.text.trim().toUpperCase()});if(!mounted)return;toast(context,'Çalışan daveti hesabına tanımlandı');Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder:(_)=>const AuthGate()),(r)=>false);}catch(e){if(mounted)toast(context,err(e));}finally{if(mounted)setState(()=>busy=false);}}
+ Future<void> claim()async{if(code.text.trim().isEmpty){toast(context,'Davet kodunu gir');return;}final confirmed=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('Çalışan olarak katıl'),content:const Text('Bu davet kodu hesabını ilgili işletmeye çalışan olarak bağlar. İşlemden sonra müşteri ana ekranı yerine çalışan paneli açılır; mevcut müşteri verilerin silinmez. Devam etmek istiyor musun?'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('Vazgeç')),FilledButton(onPressed:()=>Navigator.pop(context,true),child:const Text('Devam et'))]));if(confirmed!=true)return;setState(()=>busy=true);try{await sb.rpc('claim_employee_invite',params:{'p_code':code.text.trim().toUpperCase()});if(!mounted)return;toast(context,'Çalışan daveti hesabına tanımlandı');Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder:(_)=>const AuthGate()),(r)=>false);}catch(e){if(mounted)toast(context,err(e));}finally{if(mounted)setState(()=>busy=false);}}
  @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('Çalışan daveti')),body:ListView(padding:const EdgeInsets.all(20),children:[const ScreenHeading(eyebrow:'PERSONEL KATILIMI',title:'Ekibine katıl',subtitle:'İşletme sahibinin sana özel oluşturduğu tek kullanımlık davet kodunu gir.',icon:Icons.badge_rounded),AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[const FieldLabel('ÇALIŞAN DAVET KODU'),TextField(controller:code,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(hintText:'DAVET KODUNU GİR',prefixIcon:Icon(Icons.key_rounded))),const SizedBox(height:18),SizedBox(height:52,child:ElevatedButton(onPressed:busy?null:claim,child:busy?const SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2,color:ink)):const Text('Daveti kabul et')))]))]));
  }
 
@@ -1338,6 +1338,13 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
             ]));
           }).toList());
         }),
+        const SizedBox(height: 18),
+        const SectionHeading('Çalışan daveti'),
+        AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Bir işletmede çalışan olarak görev yapıyorsan, işletme sahibinin sana özel oluşturduğu davet kodunu buradan kabul edebilirsin.', style: TextStyle(color: muted, fontSize: 12, height: 1.45)),
+          const SizedBox(height: 12),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EmployeeInvitePage())), icon: const Icon(Icons.badge_outlined), label: const Text('Çalışan davetini kabul et'))),
+        ])),
       ]);
     }),
   );
@@ -1805,9 +1812,8 @@ class _CustomerPageState extends State<CustomerPage>{
   appBar:AppBar(title:const Text('Berberim'),actions:[
    IconButton(tooltip:'Randevularım',onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.event_note_rounded)),
    notificationAction(context),
-   PopupMenuButton<String>(onSelected:(v){if(v=='profile')_profile();if(v=='invite')Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const EmployeeInvitePage()));},itemBuilder:(_)=>const [
+   PopupMenuButton<String>(onSelected:(v){if(v=='profile')_profile();},itemBuilder:(_)=>const [
     PopupMenuItem(value:'profile',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.person_outline_rounded),title:Text('Profilim'))),
-    PopupMenuItem(value:'invite',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.badge_outlined),title:Text('Çalışan davet kodu'))),
    ]),
    IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded)),
   ]),
