@@ -227,6 +227,24 @@ String appointmentStatusLabel(Object? status) => switch (status) {
   _ => (status ?? 'Bilinmiyor').toString(),
 };
 
+List<Map<String, dynamic>> filterCustomerAppointments(
+  List<Map<String, dynamic>> rows,
+  String group,
+) {
+  switch (group) {
+    case 'upcoming':
+      return rows.where((a) =>
+        a['status'] == 'pending' || a['status'] == 'confirmed').toList()
+        ..sort((a, b) => DateTime.parse(a['starts_at'].toString())
+            .compareTo(DateTime.parse(b['starts_at'].toString())));
+    case 'completed':
+      return rows.where((a) => a['status'] == 'completed').toList();
+    default:
+      return rows.where((a) =>
+        a['status'] == 'cancelled' || a['status'] == 'no_show').toList();
+  }
+}
+
 class AppPanel extends StatelessWidget {
   const AppPanel({super.key, required this.child, this.padding = const EdgeInsets.all(18), this.margin});
   final Widget child;
@@ -1360,20 +1378,7 @@ class _CustomerAppointmentsPageState extends State<CustomerAppointmentsPage> {
   List<Map<String, dynamic>> _byStatus(
     List<Map<String, dynamic>> rows,
     String group,
-  ) {
-    switch (group) {
-      case 'upcoming':
-        return rows.where((a) =>
-          a['status'] == 'pending' || a['status'] == 'confirmed').toList()
-          ..sort((a, b) => DateTime.parse(a['starts_at'].toString())
-              .compareTo(DateTime.parse(b['starts_at'].toString())));
-      case 'completed':
-        return rows.where((a) => a['status'] == 'completed').toList();
-      default:
-        return rows.where((a) =>
-          a['status'] == 'cancelled' || a['status'] == 'no_show').toList();
-    }
-  }
+  ) => filterCustomerAppointments(rows, group);
 
   void _openCategory(String group, String title, String subtitle) {
     Navigator.of(context).push(MaterialPageRoute(
@@ -1614,18 +1619,7 @@ class _CustomerAppointmentCategoryPageState
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
 
-    if (widget.group == 'upcoming') {
-      final filtered = all.where((a) =>
-        a['status'] == 'pending' || a['status'] == 'confirmed').toList();
-      filtered.sort((a, b) => DateTime.parse(a['starts_at'].toString())
-          .compareTo(DateTime.parse(b['starts_at'].toString())));
-      return filtered;
-    }
-    if (widget.group == 'completed') {
-      return all.where((a) => a['status'] == 'completed').toList();
-    }
-    return all.where((a) =>
-      a['status'] == 'cancelled' || a['status'] == 'no_show').toList();
+    return filterCustomerAppointments(all, widget.group);
   }
 
   Future<void> refresh() async {
