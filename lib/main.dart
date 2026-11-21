@@ -1433,7 +1433,7 @@ class _CustomerAppointmentsPageState extends State<CustomerAppointmentsPage> {
               color: color.withValues(alpha: .12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text('\${count}', textAlign: TextAlign.center, style: TextStyle(
+            child: Text('${count}', textAlign: TextAlign.center, style: TextStyle(
               color: color,
               fontWeight: FontWeight.w900,
               fontSize: 15,
@@ -1509,7 +1509,7 @@ class _CustomerAppointmentsPageState extends State<CustomerAppointmentsPage> {
                         fontWeight: FontWeight.w700,
                       )),
                       const SizedBox(height: 3),
-                      Text('\${all.length}', style: const TextStyle(
+                      Text('${all.length}', style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
                       )),
@@ -1524,7 +1524,7 @@ class _CustomerAppointmentsPageState extends State<CustomerAppointmentsPage> {
                       )),
                       const SizedBox(height: 4),
                       Text(
-                        '\${nextDate.day.toString().padLeft(2, '0')}.\${nextDate.month.toString().padLeft(2, '0')}',
+                        '${nextDate.day.toString().padLeft(2, '0')}.${nextDate.month.toString().padLeft(2, '0')}',
                         style: const TextStyle(
                           color: goldLight,
                           fontWeight: FontWeight.w900,
@@ -1532,7 +1532,7 @@ class _CustomerAppointmentsPageState extends State<CustomerAppointmentsPage> {
                         ),
                       ),
                       Text(
-                        '\${nextDate.hour.toString().padLeft(2, '0')}:\${nextDate.minute.toString().padLeft(2, '0')}',
+                        '${nextDate.hour.toString().padLeft(2, '0')}:${nextDate.minute.toString().padLeft(2, '0')}',
                         style: const TextStyle(
                           color: ivory,
                           fontWeight: FontWeight.w800,
@@ -1648,10 +1648,10 @@ class _CustomerAppointmentCategoryPageState
     )?.toLocal();
     final day = parsed == null
         ? 'Tarih bilgisi yok'
-        : '\${parsed.day.toString().padLeft(2, '0')}.\${parsed.month.toString().padLeft(2, '0')}.\${parsed.year}';
+        : '${parsed.day.toString().padLeft(2, '0')}.${parsed.month.toString().padLeft(2, '0')}.${parsed.year}';
     final time = parsed == null
         ? '--:--'
-        : '\${parsed.hour.toString().padLeft(2, '0')}:\${parsed.minute.toString().padLeft(2, '0')}';
+        : '${parsed.hour.toString().padLeft(2, '0')}:${parsed.minute.toString().padLeft(2, '0')}';
 
     return AppPanel(
       margin: const EdgeInsets.only(bottom: 11),
