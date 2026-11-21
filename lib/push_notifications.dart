@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -33,9 +32,9 @@ class PushNotifications {
 
   static bool _initialized = false;
   static String? _userId;
-  static String? _currentToken;
+  static String? _currentFid;
   static SupabaseClient? _supabase;
-  static StreamSubscription<String>? _tokenRefreshSubscription;
+  static StreamSubscription<String>? _registrationSubscription;
 
   static Future<void> initialize() async {
     if (!Platform.isAndroid || _initialized) return;
@@ -47,7 +46,7 @@ class PushNotifications {
       );
 
       await _local.initialize(
-        const InitializationSettings(
+        settings: const InitializationSettings(
           android: AndroidInitializationSettings('@mipmap/ic_launcher'),
         ),
       );
@@ -82,23 +81,18 @@ class PushNotifications {
         return;
       }
 
-      final token = await _messaging.getToken();
-      if (token != null) {
-        _currentToken = token;
-        await _saveToken(token);
-      }
-
-      await _tokenRefreshSubscription?.cancel();
-      _tokenRefreshSubscription = _messaging.onTokenRefresh.listen((nextToken) {
-        _currentToken = nextToken;
-        unawaited(_saveToken(nextToken));
+      await _registrationSubscription?.cancel();
+      _registrationSubscription = _messaging.onRegistered.listen((fid) {
+        _currentFid = fid;
+        unawaited(_saveFid(fid));
       });
+      await _messaging.register();
     } catch (error) {
       debugPrint('Berberim push token registration failed: $error');
     }
   }
 
-  static Future<void> _saveToken(String token) async {
+  static Future<void> _saveFid(String fid) async {
     final client = _supabase;
     final userId = _userId;
     if (client == null || userId == null) return;
@@ -106,11 +100,11 @@ class PushNotifications {
     await client.from('push_tokens').upsert(
       {
         'user_id': userId,
-        'token': token,
+        'fid': fid,
         'platform': 'android',
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       },
-      onConflict: 'user_id,token',
+      onConflict: 'user_id,fid',
     );
   }
 
@@ -119,22 +113,22 @@ class PushNotifications {
     if (userId == null) return;
 
     try {
-      final token = _currentToken ?? await _messaging.getToken();
-      if (token != null) {
+      final fid = _currentFid;
+      if (fid != null) {
         await supabase
             .from('push_tokens')
             .delete()
             .eq('user_id', userId)
-            .eq('token', token);
+            .eq('fid', fid);
       }
     } catch (error) {
       debugPrint('Berberim push token cleanup failed: $error');
     }
 
-    await _tokenRefreshSubscription?.cancel();
-    _tokenRefreshSubscription = null;
+    await _registrationSubscription?.cancel();
+    _registrationSubscription = null;
     _userId = null;
-    _currentToken = null;
+    _currentFid = null;
     _supabase = null;
   }
 
@@ -145,11 +139,11 @@ class PushNotifications {
     if (notification == null) return;
 
     await _local.show(
-      message.messageId?.hashCode ??
+      id: message.messageId?.hashCode ??
           DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
-      notification.title ?? 'Berberim',
-      notification.body ?? '',
-      const NotificationDetails(
+      title: notification.title ?? 'Berberim',
+      body: notification.body ?? '',
+      notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
           'Berberim Bildirimleri',
