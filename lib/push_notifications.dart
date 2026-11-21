@@ -97,13 +97,17 @@ class PushNotifications {
     final userId = _userId;
     if (client == null || userId == null) return;
 
-    await client.rpc(
-      'register_push_fid',
-      params: {
-        'p_fid': fid,
-        'p_platform': 'android',
-      },
-    );
+    try {
+      await client.rpc(
+        'register_push_fid',
+        params: {
+          'p_fid': fid,
+          'p_platform': 'android',
+        },
+      );
+    } catch (error) {
+      debugPrint('Berberim FID sync failed: $error');
+    }
   }
 
   static Future<void> unregister(SupabaseClient supabase) async {
