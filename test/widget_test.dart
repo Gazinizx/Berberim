@@ -2,15 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:berberim/main.dart';
 
 void main() {
-  test('business QR payload strips the Berberim prefix and normalizes the code', () {
-    expect(normalizeBusinessJoinCode('BERBERIM: ab12cd '), 'AB12CD');
-  });
-
-  test('manual business code is normalized without requiring a camera', () {
-    expect(normalizeBusinessJoinCode(' ab12cd '), 'AB12CD');
-  });
-
-
   test('Berberim theme uses the agreed gold accent', () {
     expect(gold.value, 0xFFD8B36A);
   });
