@@ -1,5 +1,5 @@
 -- Enforce one active business membership per customer at the database boundary.
--- The live membership table was checked before applying this migration; no duplicate customers existed.
+-- Existing memberships were checked before applying this migration; no duplicate customers were found.
 create unique index if not exists business_memberships_one_per_customer_uidx
   on public.business_memberships (customer_id);
 
