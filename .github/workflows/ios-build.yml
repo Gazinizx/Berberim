@@ -46,13 +46,15 @@ jobs:
             target.resources_build_phase.add_file_reference(file_ref)
           end
 
-          target.add_capability('Push Notifications')
-          target.add_capability(
-            'Background Modes',
-            { 'backgroundModes' => ['fetch', 'remote-notification'] }
-          )
+          # xcodeproj does not expose PBXNativeTarget#add_capability.
+          # Write the same capability metadata into the Xcode project directly.
+          project.root_object.attributes['TargetAttributes'] ||= {}
+          target_attributes = project.root_object.attributes['TargetAttributes'][target.uuid] ||= {}
+          target_attributes['SystemCapabilities'] ||= {}
+          target_attributes['SystemCapabilities']['com.apple.Push'] = { 'enabled' => 1 }
+          target_attributes['SystemCapabilities']['com.apple.BackgroundModes'] = { 'enabled' => 1 }
           project.save
-          puts 'Firebase plist, Push Notifications and Background Modes added to Runner.'
+          puts 'Firebase plist and iOS Push Notifications / Background Modes capabilities added to Runner.'
           RUBY
           python3 - <<'PY'
           import plistlib
