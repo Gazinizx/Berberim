@@ -885,7 +885,20 @@ class _BarberPageState extends State<BarberPage> {
       Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
         child: QrImageView(data: 'BERBERIM:${widget.business['join_code'] ?? ''}', version: QrVersions.auto, size: 210, backgroundColor: Colors.white)),
       const SizedBox(height: 12),
-      const Text('Müşterilerin bu QR kodu okutarak işletmene katılabilir.', textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 12)),
+      const Text('QR OKUTAMIYORSAN BU KODU KULLAN', textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.7)),
+      const SizedBox(height: 6),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(color: panelRaised, borderRadius: BorderRadius.circular(14), border: Border.all(color: border)),
+        child: SelectableText(
+          (widget.business['join_code'] ?? '').toString().toUpperCase(),
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: goldLight, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 2),
+        ),
+      ),
+      const SizedBox(height: 10),
+      const Text('Müşterilerin QR kodunu okutabilir veya yukarıdaki işletme kodunu uygulamaya elle girebilir.', textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 12, height: 1.4)),
     ])),
     const SizedBox(height: 14),
     AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
