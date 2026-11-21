@@ -25,6 +25,66 @@ jobs:
       - name: Prepare iOS platform
         run: |
           if [ ! -d ios ]; then flutter create --platforms=ios --org com.gazinizx --project-name=berberim .; fi
+      - name: Configure Firebase iOS push notifications
+        run: |
+          set -euo pipefail
+          test -f firebase/GoogleService-Info.plist
+          cp firebase/GoogleService-Info.plist ios/Runner/GoogleService-Info.plist
+          gem install xcodeproj --no-document
+          ruby - <<'RUBY'
+          require 'xcodeproj'
+
+          project_path = 'ios/Runner.xcodeproj'
+          project = Xcodeproj::Project.open(project_path)
+          target = project.targets.find { |candidate| candidate.name == 'Runner' }
+          raise 'Runner target was not found in the iOS project' unless target
+
+          runner_group = project.main_group.find_subpath('Runner', true)
+          file_ref = runner_group.files.find { |file| file.path == 'GoogleService-Info.plist' }
+          file_ref ||= runner_group.new_file('GoogleService-Info.plist')
+          unless target.resources_build_phase.files_references.include?(file_ref)
+            target.resources_build_phase.add_file_reference(file_ref)
+          end
+
+          target.add_capability('Push Notifications')
+          target.add_capability(
+            'Background Modes',
+            { 'backgroundModes' => ['fetch', 'remote-notification'] }
+          )
+          project.save
+          puts 'Firebase plist, Push Notifications and Background Modes added to Runner.'
+          RUBY
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+
+          firebase_plist = plistlib.loads(Path('firebase/GoogleService-Info.plist').read_bytes())
+          if firebase_plist.get('BUNDLE_ID') != 'com.gazinizx.berberim':
+              raise SystemExit('GoogleService-Info.plist bundle identifier does not match Berberim')
+
+          info_path = Path('ios/Runner/Info.plist')
+          info = plistlib.loads(info_path.read_bytes())
+          info['CFBundleDisplayName'] = 'Berberim'
+          info['FirebaseMessagingInstallationIdEnabled'] = True
+          info['UIBackgroundModes'] = sorted(set(info.get('UIBackgroundModes', [])) | {'fetch', 'remote-notification'})
+          info['NSCameraUsageDescription'] = 'İşletme QR kodunu tarayarak Berberim\'e katılmak için kamera erişimi gerekir.'
+
+          url_types = info.get('CFBundleURLTypes', [])
+          if not any('berberim' in item.get('CFBundleURLSchemes', []) for item in url_types):
+              url_types.append({'CFBundleURLSchemes': ['berberim']})
+          info['CFBundleURLTypes'] = url_types
+          info_path.write_bytes(plistlib.dumps(info))
+
+          copied = plistlib.loads(Path('ios/Runner/GoogleService-Info.plist').read_bytes())
+          if copied.get('GOOGLE_APP_ID') != firebase_plist.get('GOOGLE_APP_ID'):
+              raise SystemExit('GoogleService-Info.plist was not copied correctly')
+          check = plistlib.loads(info_path.read_bytes())
+          if check.get('FirebaseMessagingInstallationIdEnabled') is not True:
+              raise SystemExit('Firebase Installation ID registration is not enabled for iOS')
+          if not {'fetch', 'remote-notification'}.issubset(set(check.get('UIBackgroundModes', []))):
+              raise SystemExit('iOS remote notification background modes are missing')
+          print('iOS Firebase configuration verified.')
+          PY
       - name: Set iOS deployment target
         run: |
           python3 - <<'PY'
@@ -60,36 +120,6 @@ jobs:
           if "IPHONEOS_DEPLOYMENT_TARGET = 15.5;" not in project.read_text():
               raise SystemExit("Xcode iOS deployment target was not raised to 15.5")
           print(f"iOS deployment target set to 15.5 in Podfile and {count} Xcode build settings.")
-          PY
-      - name: Configure Berberim auth callback
-        run: |
-          python3 - <<'PY'
-          import plistlib
-          from pathlib import Path
-          p = Path("ios/Runner/Info.plist")
-          data = plistlib.loads(p.read_bytes())
-          data["CFBundleDisplayName"] = "Berberim"
-          url_types = data.get("CFBundleURLTypes", [])
-          if not any("berberim" in item.get("CFBundleURLSchemes", []) for item in url_types):
-              url_types.append({"CFBundleURLSchemes": ["berberim"]})
-          data["CFBundleURLTypes"] = url_types
-          p.write_bytes(plistlib.dumps(data))
-          check = plistlib.loads(p.read_bytes())
-          if not any("berberim" in item.get("CFBundleURLSchemes", []) for item in check.get("CFBundleURLTypes", [])):
-              raise SystemExit("Berberim auth callback URL scheme missing")
-          print("iOS auth callback configured.")
-          PY
-      - name: Configure QR scanner camera permission
-        run: |
-          python3 - <<'PY'
-          import plistlib
-          from pathlib import Path
-          p = Path("ios/Runner/Info.plist")
-          data = plistlib.loads(p.read_bytes())
-          data["NSCameraUsageDescription"] = "İşletme QR kodunu tarayarak Berberim'e katılmak için kamera erişimi gerekir."
-          p.write_bytes(plistlib.dumps(data))
-          if not plistlib.loads(p.read_bytes()).get("NSCameraUsageDescription"): raise SystemExit("Camera usage description missing")
-          print("iOS camera usage description configured.")
           PY
       - name: Install dependencies
         run: flutter pub get
