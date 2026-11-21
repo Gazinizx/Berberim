@@ -10,7 +10,7 @@ type NotificationRow = {
 
 type PushTokenRow = {
   id: string;
-  token: string;
+  fid: string;
 };
 
 const corsHeaders = {
@@ -174,7 +174,7 @@ Deno.serve(async (request: Request) => {
     const row = notification as NotificationRow;
     const { data: tokenRows, error: tokenError } = await admin
       .from("push_tokens")
-      .select("id,token")
+      .select("id,fid")
       .eq("user_id", row.user_id);
 
     if (tokenError) throw tokenError;
@@ -196,7 +196,7 @@ Deno.serve(async (request: Request) => {
         },
         body: JSON.stringify({
           message: {
-            token: device.token,
+            fid: device.fid,
             notification: {
               title: row.title,
               body: row.body,
