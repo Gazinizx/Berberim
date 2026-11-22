@@ -58,7 +58,7 @@ String normalizeBusinessJoinCode(String raw) {
 String employeeLoginPart(String value) => value
     .trim()
     .toLowerCase()
-    .replaceAll(RegExp(r'\\s+'), '')
+    .replaceAll(RegExp(r'\s+'), '')
     .replaceAll(RegExp(r'[^a-z0-9çğıöşü._-]'), '');
 
 String employeeLoginUsername(String businessName, String employeeName) =>
@@ -1062,7 +1062,7 @@ class _BarberPageState extends State<BarberPage> {
       if (mounted) {
         await showDialog<void>(context: context, builder: (c) => AlertDialog(
           title: const Text('Çalışan hesabı oluşturuldu'),
-          content: SelectableText('Çalışan: $name\\nKullanıcı adı: ${payload['login_username'] ?? username}\\nŞifre: $password\\n\\nBu bilgileri çalışanla güvenli şekilde paylaş.'),
+          content: SelectableText('Çalışan: $name\nKullanıcı adı: ${payload['login_username'] ?? username}\nŞifre: $password\n\nBu bilgileri çalışanla güvenli şekilde paylaş.'),
           actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Tamam'))],
         ));
       }
