@@ -23,7 +23,7 @@ function serverKey(): string {
 }
 
 function phoneDigits(value: string): string {
-  let digits = value.replace(/\\D/g, "");
+  let digits = value.replace(/\D/g, "");
   if (digits.startsWith("90") && digits.length === 12) digits = digits.slice(2);
   if (digits.startsWith("0") && digits.length === 11) digits = digits.slice(1);
   return digits;
@@ -31,8 +31,8 @@ function phoneDigits(value: string): string {
 
 function usernamePart(value: string): string {
   return value.normalize("NFC").trim().toLocaleLowerCase("tr-TR")
-    .replace(/\\s+/gu, "")
-    .replace(/[^\\p{L}\\p{N}._-]/gu, "");
+    .replace(/\s+/gu, "")
+    .replace(/[^\p{L}\p{N}._-]/gu, "");
 }
 
 Deno.serve(async (request: Request) => {
@@ -45,7 +45,7 @@ Deno.serve(async (request: Request) => {
     if (!url || !key) return json({ error: "Sunucu yapılandırması eksik" }, 503);
 
     const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-    const token = (request.headers.get("Authorization") ?? "").replace(/^Bearer\\s+/i, "").trim();
+    const token = (request.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
     if (!token) return json({ error: "Oturum gerekli" }, 401);
 
     const { data: authData, error: authError } = await admin.auth.getUser(token);
