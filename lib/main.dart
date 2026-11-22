@@ -732,6 +732,13 @@ class _BusinessOverviewPageState extends State<BusinessOverviewPage> {
     try { await sb.rpc('cancel_appointment', params: {'p_appointment_id': id}); await refresh(); }
     catch (e) { if (mounted) toast(context, err(e)); }
   }
+  Future<void> reviewRequest(String id, String decision) async {
+    try {
+      await sb.rpc('review_appointment_request', params: {'p_appointment_id': id, 'p_decision': decision});
+      await refresh();
+      if (mounted) toast(context, decision == 'approve' ? 'Özel randevu onaylandı' : 'Özel randevu talebi reddedildi');
+    } catch (e) { if (mounted) toast(context, err(e)); }
+  }
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Genel bakış'), actions: [IconButton(tooltip: 'Yenile', onPressed: refresh, icon: const Icon(Icons.refresh_rounded))]),
     body: FutureBuilder<List<Map<String, dynamic>>>(future: appointmentsFuture, builder: (context, snapshot) {
@@ -750,8 +757,10 @@ class _BusinessOverviewPageState extends State<BusinessOverviewPage> {
         if (rows.isEmpty) const AppPanel(child: EmptyStateView(icon: Icons.event_busy_rounded, title: 'Randevu bulunmuyor', subtitle: 'İşletmene gelen tüm randevular burada listelenecek.')),
         ...rows.map((a) => BusinessAppointmentCard(
           appointment: a, showEmployee: true,
-          onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => setStatus(a['appointment_id'].toString(), 'completed') : null,
-          onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => cancel(a['appointment_id'].toString()) : null,
+          onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => setStatus(a['appointment_id'].toString(), 'completed') : null,
+          onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => cancel(a['appointment_id'].toString()) : null,
+          onApprove: a['requires_business_approval'] == true ? () => reviewRequest(a['appointment_id'].toString(), 'approve') : null,
+          onReject: a['requires_business_approval'] == true ? () => reviewRequest(a['appointment_id'].toString(), 'reject') : null,
         )),
       ]);
     }),
@@ -957,8 +966,10 @@ class _BarberPageState extends State<BarberPage> {
       if (rows.isEmpty) const AppPanel(child: EmptyStateView(icon: Icons.event_busy_rounded, title: 'Henüz randevun yok', subtitle: 'Sana ait yeni randevular burada listelenecek.')),
       ...rows.map((a) => BusinessAppointmentCard(
         appointment: a,
-        onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => _setStatus(a['appointment_id'].toString(), 'completed') : null,
-        onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => _cancel(a['appointment_id'].toString()) : null,
+        onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => _setStatus(a['appointment_id'].toString(), 'completed') : null,
+        onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => _cancel(a['appointment_id'].toString()) : null,
+        onApprove: a['requires_business_approval'] == true ? () => _reviewRequest(a['appointment_id'].toString(), 'approve') : null,
+        onReject: a['requires_business_approval'] == true ? () => _reviewRequest(a['appointment_id'].toString(), 'reject') : null,
       )),
     ]);
   });
@@ -976,6 +987,13 @@ class _BarberPageState extends State<BarberPage> {
   Future<void> _cancel(String id) async {
     try { await sb.rpc('cancel_appointment', params: {'p_appointment_id': id}); await refresh(); }
     catch (e) { if (mounted) toast(context, err(e)); }
+  }
+  Future<void> _reviewRequest(String id, String decision) async {
+    try {
+      await sb.rpc('review_appointment_request', params: {'p_appointment_id': id, 'p_decision': decision});
+      await refresh();
+      if (mounted) toast(context, decision == 'approve' ? 'Özel randevu onaylandı' : 'Özel randevu talebi reddedildi');
+    } catch (e) { if (mounted) toast(context, err(e)); }
   }
 
   Widget _employeesPage() => ListView(padding: const EdgeInsets.fromLTRB(18, 16, 18, 28), children: [
@@ -1137,11 +1155,13 @@ String appointmentDateTimeLabel(Object? value) {
   return '$date • $time';
 }
 class BusinessAppointmentCard extends StatelessWidget {
-  const BusinessAppointmentCard({super.key, required this.appointment, this.showEmployee = false, this.onComplete, this.onCancel});
+  const BusinessAppointmentCard({super.key, required this.appointment, this.showEmployee = false, this.onComplete, this.onCancel, this.onApprove, this.onReject});
   final Map<String, dynamic> appointment;
   final bool showEmployee;
   final VoidCallback? onComplete;
   final VoidCallback? onCancel;
+  final VoidCallback? onApprove;
+  final VoidCallback? onReject;
 
   @override Widget build(BuildContext context) {
     final status = (appointment['status'] ?? '').toString();
@@ -1171,7 +1191,9 @@ class BusinessAppointmentCard extends StatelessWidget {
               Padding(padding: const EdgeInsets.only(top: 4), child: Text('Çalışan: ${appointment['employee_name']}', style: const TextStyle(color: muted, fontSize: 11))),
           ])),
           const SizedBox(width: 6),
-          StatusTag(appointmentStatusLabel(status), color: statusColor),
+          appointment['requires_business_approval'] == true
+              ? const StatusTag('ÖZEL ONAY', color: Colors.orangeAccent)
+              : StatusTag(appointmentStatusLabel(status), color: statusColor),
         ]),
         const SizedBox(height: 14),
         Container(
@@ -1186,7 +1208,14 @@ class BusinessAppointmentCard extends StatelessWidget {
             Text(time, style: const TextStyle(color: goldLight, fontSize: 15, fontWeight: FontWeight.w900)),
           ]),
         ),
-        if (active && (onComplete != null || onCancel != null)) ...[
+        if (active && appointment['requires_business_approval'] == true && (onApprove != null || onReject != null)) ...[
+          const SizedBox(height: 12),
+          Row(children: [
+            if (onApprove != null) Expanded(child: ElevatedButton.icon(onPressed: onApprove, icon: const Icon(Icons.check_rounded, size: 17), label: const Text('Onayla'))),
+            if (onApprove != null && onReject != null) const SizedBox(width: 9),
+            if (onReject != null) Expanded(child: OutlinedButton.icon(onPressed: onReject, icon: const Icon(Icons.close_rounded, size: 17), label: const Text('Reddet'))),
+          ]),
+        ] else if (active && appointment['requires_business_approval'] != true && (onComplete != null || onCancel != null)) ...[
           const SizedBox(height: 12),
           Row(children: [
             if (onComplete != null) Expanded(child: OutlinedButton.icon(onPressed: onComplete, icon: const Icon(Icons.check_circle_outline_rounded, size: 17), label: const Text('Tamamlandı'))),
@@ -1501,7 +1530,7 @@ class _CustomerAppointmentsPageState extends State<CustomerAppointmentsPage> {
 
   Future<List<Map<String, dynamic>>> _load() async {
     final rows = await sb.from('appointments')
-        .select('id,starts_at,ends_at,status,businesses(name),services(name)')
+        .select('id,starts_at,ends_at,status,requires_business_approval,businesses(name),services(name)')
         .eq('customer_id', uid)
         .order('starts_at', ascending: false)
         .limit(100);
@@ -1752,7 +1781,7 @@ class _CustomerAppointmentCategoryPageState
 
   Future<List<Map<String, dynamic>>> _load() async {
     final rows = await sb.from('appointments')
-        .select('id,starts_at,ends_at,status,businesses(name),services(name)')
+        .select('id,starts_at,ends_at,status,requires_business_approval,businesses(name),services(name)')
         .eq('customer_id', uid)
         .order('starts_at', ascending: false)
         .limit(100);
@@ -1824,7 +1853,12 @@ class _CustomerAppointmentCategoryPageState
                 ),
               ],
             )),
-            StatusTag(appointmentStatusLabel(status), color: color),
+            StatusTag(
+              appointment['requires_business_approval'] == true
+                  ? 'İŞLETME ONAYI BEKLENİYOR'
+                  : appointmentStatusLabel(status),
+              color: appointment['requires_business_approval'] == true ? Colors.orangeAccent : color,
+            ),
           ]),
           const SizedBox(height: 13),
           Container(
@@ -2132,8 +2166,13 @@ class _CustomerDateTimePageState extends State<CustomerDateTimePage>{
   setState(()=>busy=true);
   try{
    final p=selectedTime.split(':').map(int.parse).toList();final local=DateTime(day.year,day.month,day.day,p[0],p[1]);
-   await sb.rpc('book_appointment',params:{'p_business_id':widget.business['id'],'p_employee_id':widget.employee['id'],'p_service_id':widget.service['id'],'p_starts_at':local.toUtc().toIso8601String()});
-   if(!mounted)return;toast(context,'Randevun oluşturuldu');Navigator.of(context).popUntil((r)=>r.isFirst);
+   final appointmentId = await sb.rpc('book_appointment',params:{'p_business_id':widget.business['id'],'p_employee_id':widget.employee['id'],'p_service_id':widget.service['id'],'p_starts_at':local.toUtc().toIso8601String()});
+   final booking = await sb.from('appointments').select('requires_business_approval').eq('id', appointmentId.toString()).maybeSingle();
+   if(!mounted)return;
+   toast(context, booking?['requires_business_approval'] == true
+       ? 'Üç kez randevuna gelmediğin için işletme onayı bekleniyor.'
+       : 'Randevun oluşturuldu');
+   Navigator.of(context).popUntil((r)=>r.isFirst);
   }catch(e){if(mounted)toast(context,err(e));}
   finally{if(mounted)setState(()=>busy=false);}
  }
