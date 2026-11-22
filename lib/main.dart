@@ -1446,72 +1446,349 @@ class _CustomerQrScannerPageState extends State<CustomerQrScannerPage> {
 }
 class CustomerProfilePage extends StatefulWidget {
   const CustomerProfilePage({super.key});
-  @override State<CustomerProfilePage> createState() => _CustomerProfilePageState();
+
+  @override
+  State<CustomerProfilePage> createState() => _CustomerProfilePageState();
 }
+
 class _CustomerProfilePageState extends State<CustomerProfilePage> {
   late Future<Map<String, dynamic>?> profileFuture;
   late Future<List<Map<String, dynamic>>> membershipsFuture;
-  @override void initState() { super.initState(); _reload(); }
-  void _reload() {
-    profileFuture = sb.from('profiles').select('full_name,email,phone').eq('id', uid).maybeSingle();
-    membershipsFuture = sb.from('business_memberships').select('business_id, businesses(id,name,address)').eq('customer_id', uid);
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
   }
+
+  void _reload() {
+    profileFuture = sb
+        .from('profiles')
+        .select('full_name,email,phone')
+        .eq('id', uid)
+        .maybeSingle();
+    membershipsFuture = sb
+        .from('business_memberships')
+        .select('business_id,businesses(id,name,address)')
+        .eq('customer_id', uid);
+  }
+
   Future<void> leaveBusiness(String businessId, String name) async {
-    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
-      title: const Text('İşletmeden ayrıl'),
-      content: Text('$name işletmesinden ayrılmak istediğine emin misin? Randevu geçmişin silinmez.'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Vazgeç')),
-        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ayrıl')),
-      ],
-    ));
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('İşletmeden ayrıl'),
+        content: Text(
+          '$name işletmesinden ayrılmak istediğine emin misin? Randevu geçmişin silinmez.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Ayrıl'),
+          ),
+        ],
+      ),
+    );
     if (confirmed != true) return;
     try {
       await sb.rpc('leave_business', params: {'p_business_id': businessId});
       if (!mounted) return;
       toast(context, 'İşletmeden ayrıldın');
       Navigator.of(context).pop(true);
-    } catch (e) { if (mounted) toast(context, err(e)); }
+    } catch (e) {
+      if (mounted) toast(context, err(e));
+    }
   }
-  @override Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Profilim')),
-    body: FutureBuilder<Map<String, dynamic>?>(future: profileFuture, builder: (context, profile) {
-      if (profile.connectionState != ConnectionState.done) return const LoadingPage();
-      if (profile.hasError) return ErrorPage(message: err(profile.error!));
-      final p = profile.data ?? {};
-      return ListView(padding: const EdgeInsets.fromLTRB(18, 14, 18, 28), children: [
-        const ScreenHeading(eyebrow: 'HESABIM', title: 'Profilim', subtitle: 'Hesap bilgilerini ve işletme üyeliklerini buradan yönet.', icon: Icons.person_outline_rounded),
-        AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text((p['full_name'] ?? 'Berberim kullanıcısı').toString(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-          const SizedBox(height: 6),
-          Text((p['email'] ?? '').toString(), style: const TextStyle(color: muted, fontSize: 12)),
-          if ((p['phone'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(p['phone'].toString(), style: const TextStyle(color: muted, fontSize: 12))),
-        ])),
-        const SizedBox(height: 18),
-        const SectionHeading('İşletme üyeliğim'),
-        FutureBuilder<List<Map<String, dynamic>>>(future: membershipsFuture, builder: (context, memberships) {
-          if (memberships.connectionState != ConnectionState.done) return const LinearProgressIndicator();
-          if (memberships.hasError) return Text(err(memberships.error!), style: const TextStyle(color: Colors.redAccent));
-          final rows = memberships.data ?? [];
-          if (rows.isEmpty) return const AppPanel(child: EmptyStateView(icon: Icons.storefront_outlined, title: 'Bir işletmeye bağlı değilsin', subtitle: 'İşletmenin QR kodunu okutarak katılabilirsin.'));
-          return Column(children: rows.map((row) {
-            final business = row['businesses'] as Map<String, dynamic>? ?? {};
-            final businessName = (business['name'] ?? 'İşletme').toString();
-            return AppPanel(margin: const EdgeInsets.only(bottom: 10), child: Row(children: [
-              const CircleAvatar(backgroundColor: ink, child: Icon(Icons.storefront_rounded, color: gold)),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(businessName, style: const TextStyle(fontWeight: FontWeight.w800)),
-                if ((business['address'] ?? '').toString().isNotEmpty) Text(business['address'].toString(), style: const TextStyle(color: muted, fontSize: 11)),
-              ])),
-              TextButton(onPressed: () => leaveBusiness(row['business_id'].toString(), businessName), child: const Text('Berberim’den ayrıl')),
-            ]));
-          }).toList());
-        }),
-      ]);
-    }),
-  );
+
+  Widget _profileCard(Map<String, dynamic> profile) {
+    final name = (profile['full_name'] ?? 'Berberim kullanıcısı').toString();
+    final initial = name.trim().isEmpty ? 'B' : name.trim()[0].toUpperCase();
+    final email = (profile['email'] ?? '').toString();
+    final phone = (profile['phone'] ?? '').toString();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF302A20), Color(0xFF1A1B1F), Color(0xFF151619)],
+        ),
+        border: Border.all(color: gold.withValues(alpha: .28)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 62,
+            height: 62,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(colors: [goldLight, gold]),
+              boxShadow: [
+                BoxShadow(
+                  color: gold.withValues(alpha: .18),
+                  blurRadius: 20,
+                  offset: const Offset(0, 7),
+                ),
+              ],
+            ),
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color: ink,
+                fontSize: 25,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'BERBERİM ÜYESİ',
+                  style: TextStyle(
+                    color: goldLight,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -.35,
+                  ),
+                ),
+                if (email.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: muted, fontSize: 11),
+                  ),
+                ],
+                if (phone.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    phone,
+                    style: const TextStyle(color: muted, fontSize: 11),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Icon(Icons.verified_rounded, color: goldLight, size: 19),
+        ],
+      ),
+    );
+  }
+
+  Widget _membershipCard(Map<String, dynamic> row) {
+    final business = row['businesses'] as Map<String, dynamic>? ?? {};
+    final name = (business['name'] ?? 'İşletme').toString();
+    final address = (business['address'] ?? '').toString();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 11),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: panel,
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: gold.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Icon(Icons.storefront_rounded, color: gold, size: 23),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (address.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    address,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: muted, fontSize: 10),
+                  ),
+                ],
+                const SizedBox(height: 7),
+                const Text(
+                  'ÜYELİĞİN AKTİF',
+                  style: TextStyle(
+                    color: Color(0xFFB8DCC5),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .7,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: 'İşletmeden ayrıl',
+            onPressed: () => leaveBusiness(
+              row['business_id'].toString(),
+              name,
+            ),
+            style: IconButton.styleFrom(
+              foregroundColor: const Color(0xFFE5A09A),
+              backgroundColor: const Color(0x22E57373),
+            ),
+            icon: const Icon(Icons.logout_rounded, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(
+          title: const Text('Profilim'),
+          actions: [
+            IconButton(
+              tooltip: 'Yenile',
+              onPressed: () => setState(_reload),
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          ],
+        ),
+        body: FutureBuilder<Map<String, dynamic>?>(
+          future: profileFuture,
+          builder: (context, profile) {
+            if (profile.connectionState != ConnectionState.done) {
+              return const LoadingPage();
+            }
+            if (profile.hasError) {
+              return ErrorPage(message: err(profile.error!));
+            }
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 30),
+              children: [
+                const ScreenHeading(
+                  eyebrow: 'HESABIN',
+                  title: 'Profilim',
+                  subtitle: 'Kişisel bilgilerin ve işletme üyeliklerin tek yerde.',
+                  icon: Icons.person_outline_rounded,
+                ),
+                _profileCard(profile.data ?? {}),
+                const SizedBox(height: 25),
+                Row(
+                  children: [
+                    const Expanded(child: SectionHeading('İşletmelerim')),
+                    FutureBuilder<List<Map<String, dynamic>>>(
+                      future: membershipsFuture,
+                      builder: (context, snapshot) => Text(
+                        '${snapshot.data?.length ?? 0} ÜYELİK',
+                        style: const TextStyle(
+                          color: goldLight,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .8,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                FutureBuilder<List<Map<String, dynamic>>>(
+                  future: membershipsFuture,
+                  builder: (context, memberships) {
+                    if (memberships.connectionState != ConnectionState.done) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 18),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    if (memberships.hasError) {
+                      return Text(
+                        err(memberships.error!),
+                        style: const TextStyle(color: Colors.redAccent),
+                      );
+                    }
+                    final rows = memberships.data ?? [];
+                    if (rows.isEmpty) {
+                      return Container(
+                        padding: const EdgeInsets.all(22),
+                        decoration: BoxDecoration(
+                          color: panel,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(color: border),
+                        ),
+                        child: const EmptyStateView(
+                          icon: Icons.storefront_outlined,
+                          title: 'Henüz bir işletmeye bağlı değilsin',
+                          subtitle: 'Berberinin QR kodunu okutarak üyeliğini ekleyebilirsin.',
+                        ),
+                      );
+                    }
+                    return Column(
+                      children: rows.map(_membershipCard).toList(),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: gold.withValues(alpha: .07),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: gold.withValues(alpha: .16)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.shield_outlined, color: gold, size: 20),
+                      SizedBox(width: 11),
+                      Expanded(
+                        child: Text(
+                          'Hesap ve üyelik işlemlerin güvenli şekilde yönetilir.',
+                          style: TextStyle(color: muted, fontSize: 11, height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
 }
+
 class CustomerAppointmentsPage extends StatefulWidget {
   const CustomerAppointmentsPage({super.key});
 
