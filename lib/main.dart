@@ -933,6 +933,8 @@ class _BarberPageState extends State<BarberPage> {
   final price = TextEditingController();
   final duration = TextEditingController(text: '30');
   final employee = TextEditingController();
+  final employeeLastName = TextEditingController();
+  final employeePhone = TextEditingController();
   final employeePassword = TextEditingController();
   final open = TextEditingController(text: '09:00');
   final close = TextEditingController(text: '20:00');
@@ -954,7 +956,7 @@ class _BarberPageState extends State<BarberPage> {
   }
 
   @override void dispose() {
-    service.dispose(); price.dispose(); duration.dispose(); employee.dispose(); employeePassword.dispose();
+    service.dispose(); price.dispose(); duration.dispose(); employee.dispose(); employeeLastName.dispose(); employeePhone.dispose(); employeePassword.dispose();
     open.dispose(); close.dispose(); breakStart.dispose(); breakEnd.dispose();
     super.dispose();
   }
@@ -1034,11 +1036,17 @@ class _BarberPageState extends State<BarberPage> {
   }
 
   Future<void> addEmployee() async {
-    final name = employee.text.trim();
+    final firstName = employee.text.trim();
+    final lastName = employeeLastName.text.trim();
+    final phone = employeePhone.text.trim();
+    final phoneDigits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final normalizedPhone = phoneDigits.startsWith('90') && phoneDigits.length == 12 ? phoneDigits.substring(2) : phoneDigits.startsWith('0') && phoneDigits.length == 11 ? phoneDigits.substring(1) : phoneDigits;
+    final name = '$firstName $lastName'.trim();
     final password = employeePassword.text;
-    if (name.isEmpty) { toast(context, 'Çalışan adı boş olamaz'); return; }
+    if (firstName.length < 2 || lastName.length < 2) { toast(context, 'Çalışanın ad ve soyadı zorunludur'); return; }
+    if (normalizedPhone.length != 10 || !normalizedPhone.startsWith('5')) { toast(context, 'Geçerli bir 05xx telefon numarası gir'); return; }
     if (password.length < 8) { toast(context, 'Çalışan şifresi en az 8 karakter olmalı'); return; }
-    final username = employeeLoginUsername(widget.business['name'].toString(), name);
+    final username = employeeLoginUsername(widget.business['name'].toString(), firstName);
     if (username.startsWith('@') || username.endsWith('@')) {
       toast(context, 'İşletme veya çalışan adı kullanıcı adı oluşturmak için uygun değil');
       return;
@@ -1048,6 +1056,9 @@ class _BarberPageState extends State<BarberPage> {
       final response = await sb.functions.invoke('account-admin', body: {
         'action': 'create_employee',
         'business_id': widget.business['id'],
+        'first_name': firstName,
+        'last_name': lastName,
+        'phone': phone,
         'display_name': name,
         'password': password,
       });
@@ -1057,6 +1068,8 @@ class _BarberPageState extends State<BarberPage> {
       }
       final payload = Map<String, dynamic>.from(response.data as Map);
       employee.clear();
+      employeeLastName.clear();
+      employeePhone.clear();
       employeePassword.clear();
       await refresh();
       if (mounted) {
@@ -1310,7 +1323,13 @@ class _BarberPageState extends State<BarberPage> {
     _heading('EKİP YÖNETİMİ', 'Çalışanlar', 'Çalışan hesabını ve giriş şifresini buradan oluştur.', Icons.groups_rounded),
     AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       const FieldLabel('ÇALIŞAN ADI'),
-      TextField(controller: employee, onChanged: (_) => setState(() {}), decoration: const InputDecoration(hintText: 'Örn. Ahmet', prefixIcon: Icon(Icons.person_add_alt_1_rounded))),
+      TextField(controller: employee, onChanged: (_) => setState(() {}), textCapitalization: TextCapitalization.words, decoration: const InputDecoration(hintText: 'Örn. Ahmet', prefixIcon: Icon(Icons.person_add_alt_1_rounded))),
+      const SizedBox(height: 12),
+      const FieldLabel('ÇALIŞAN SOYADI'),
+      TextField(controller: employeeLastName, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(hintText: 'Örn. Yılmaz', prefixIcon: Icon(Icons.badge_outlined))),
+      const SizedBox(height: 12),
+      const FieldLabel('TELEFON NUMARASI'),
+      TextField(controller: employeePhone, keyboardType: TextInputType.phone, decoration: const InputDecoration(hintText: '05xx xxx xx xx', prefixIcon: Icon(Icons.phone_outlined))),
       const SizedBox(height: 12),
       const FieldLabel('ÇALIŞAN KULLANICI ADI'),
       Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: panelRaised, borderRadius: BorderRadius.circular(14), border: Border.all(color: border)), child: Text(employeeLoginUsername(widget.business['name'].toString(), employee.text).isEmpty ? 'İşletme@çalışan' : employeeLoginUsername(widget.business['name'].toString(), employee.text), style: const TextStyle(color: goldLight, fontWeight: FontWeight.w800))),
@@ -1332,12 +1351,14 @@ class _BarberPageState extends State<BarberPage> {
           margin: const EdgeInsets.only(bottom: 9), padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: const Color(0xFF171717), borderRadius: BorderRadius.circular(16), border: Border.all(color: border)),
           child: Row(children: [
-            Container(width: 44, height: 44, decoration: BoxDecoration(color: gold.withValues(alpha: .12), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.person_rounded, color: goldLight)),
+            ProfileAvatar(url: (e['avatar_url'] ?? '').toString(), size: 46),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(e['display_name'] ?? 'Çalışan', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-              const SizedBox(height: 4),
-              Text((e['login_username'] ?? '').toString().isNotEmpty ? 'Giriş: ${e['login_username']}' : invites.isEmpty ? 'Eski davet kodu bulunmuyor' : 'Davet: ${invites.map((i) => i['invite_code']).join(' • ')}', style: const TextStyle(color: muted, fontSize: 10)),
+              Text('${e['first_name'] ?? ''} ${e['last_name'] ?? ''}'.trim().isEmpty ? (e['display_name'] ?? 'Çalışan') : '${e['first_name'] ?? ''} ${e['last_name'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+              const SizedBox(height: 3),
+              if ((e['phone'] ?? '').toString().isNotEmpty) Text(e['phone'].toString(), style: const TextStyle(color: muted, fontSize: 10)),
+              const SizedBox(height: 3),
+              Text((e['login_username'] ?? '').toString().isNotEmpty ? 'Giriş: ${e['login_username']}' : invites.isEmpty ? 'Eski davet kodu bulunmuyor' : 'Davet: ${invites.map((i) => i['invite_code']).join(' • ')}', style: const TextStyle(color: goldLight, fontSize: 10)),
             ])),
             StatusTag(e['is_active'] == true ? 'AKTİF' : 'PASİF', color: e['is_active'] == true ? Colors.greenAccent : muted),
           ]),
@@ -1650,6 +1671,18 @@ class BusinessAppointmentCard extends StatelessWidget {
   }
 }
 
+class EmployeeProfilePage extends StatelessWidget {
+  const EmployeeProfilePage({super.key});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Çalışan profilim')),
+    body: ListView(padding: const EdgeInsets.fromLTRB(18, 14, 18, 28), children: [
+      const ScreenHeading(eyebrow: 'HESABIN', title: 'Profilim', subtitle: 'Kişisel bilgilerini ve profil fotoğrafını güncel tut.', icon: Icons.account_circle_rounded),
+      const CustomerProfileEditor(),
+    ]),
+  );
+}
+
 class EmployeePage extends StatefulWidget {
   const EmployeePage({super.key, required this.employee});
   final Map<String, dynamic> employee;
@@ -1684,6 +1717,7 @@ class _EmployeePageState extends State<EmployeePage> {
 
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(widget.employee['businesses']?['name'] ?? 'Çalışan paneli'), actions: [
+      IconButton(tooltip: 'Profilim', onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EmployeeProfilePage())), icon: const Icon(Icons.account_circle_outlined)),
       notificationAction(context),
       IconButton(tooltip: 'Yenile', onPressed: refresh, icon: const Icon(Icons.refresh_rounded)),
       IconButton(tooltip: 'Çıkış yap', onPressed: () => signOutBerberim(), icon: const Icon(Icons.logout_rounded)),
