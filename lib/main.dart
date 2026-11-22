@@ -2538,6 +2538,7 @@ class _CustomerBookingFlowPageState extends State<CustomerBookingFlowPage> {
     required String nameKey,
     required IconData icon,
     required int step,
+    required int totalSteps,
     String? detailKey,
   }) =>
       Navigator.of(context).push<Map<String, dynamic>>(
@@ -2549,6 +2550,7 @@ class _CustomerBookingFlowPageState extends State<CustomerBookingFlowPage> {
             nameKey: nameKey,
             icon: icon,
             step: step,
+            totalSteps: totalSteps,
             detailKey: detailKey,
           ),
         ),
@@ -2627,9 +2629,9 @@ class _CustomerBookingFlowPageState extends State<CustomerBookingFlowPage> {
   @override
   Widget build(BuildContext context) {
     if (widget.businesses.length == 1) {
-      return const Scaffold(
-        appBar: AppBar(title: Text('Randevu oluştur')),
-        body: LoadingPage(),
+      return Scaffold(
+        appBar: AppBar(title: const Text('Randevu oluştur')),
+        body: const LoadingPage(),
       );
     }
 
