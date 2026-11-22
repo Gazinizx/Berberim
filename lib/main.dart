@@ -262,6 +262,18 @@ List<Map<String, dynamic>> filterCustomerAppointments(
   }
 }
 
+bool canMarkAppointmentNoShow(
+  Map<String, dynamic> appointment, {
+  DateTime? now,
+}) {
+  final status = appointment['status'];
+  final startsAt = DateTime.tryParse((appointment['starts_at'] ?? '').toString());
+  return (status == 'pending' || status == 'confirmed') &&
+      appointment['requires_business_approval'] != true &&
+      startsAt != null &&
+      startsAt.isBefore(now ?? DateTime.now());
+}
+
 List<Map<String, dynamic>> filterBusinessCustomers(
   List<Map<String, dynamic>> rows, {
   String query = '',
@@ -773,7 +785,7 @@ class _BusinessOverviewPageState extends State<BusinessOverviewPage> {
         ...rows.map((a) => BusinessAppointmentCard(
           appointment: a, showEmployee: true,
           onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => setStatus(a['appointment_id'].toString(), 'completed') : null,
-          onNoShow: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true && (DateTime.tryParse(a['starts_at'].toString())?.isBefore(DateTime.now()) ?? false) ? () => setStatus(a['appointment_id'].toString(), 'no_show') : null,
+          onNoShow: canMarkAppointmentNoShow(a) ? () => setStatus(a['appointment_id'].toString(), 'no_show') : null,
           onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => cancel(a['appointment_id'].toString()) : null,
           onApprove: a['requires_business_approval'] == true ? () => reviewRequest(a['appointment_id'].toString(), 'approve') : null,
           onReject: a['requires_business_approval'] == true ? () => reviewRequest(a['appointment_id'].toString(), 'reject') : null,
@@ -993,7 +1005,7 @@ class _BarberPageState extends State<BarberPage> {
       ...rows.map((a) => BusinessAppointmentCard(
         appointment: a,
         onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => _setStatus(a['appointment_id'].toString(), 'completed') : null,
-        onNoShow: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true && (DateTime.tryParse(a['starts_at'].toString())?.isBefore(DateTime.now()) ?? false) ? () => _setStatus(a['appointment_id'].toString(), 'no_show') : null,
+        onNoShow: canMarkAppointmentNoShow(a) ? () => _setStatus(a['appointment_id'].toString(), 'no_show') : null,
         onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => _cancel(a['appointment_id'].toString()) : null,
         onApprove: a['requires_business_approval'] == true ? () => _reviewRequest(a['appointment_id'].toString(), 'approve') : null,
         onReject: a['requires_business_approval'] == true ? () => _reviewRequest(a['appointment_id'].toString(), 'reject') : null,
@@ -1609,7 +1621,7 @@ class _EmployeePageState extends State<EmployeePage> {
           ...rows.map((a) => BusinessAppointmentCard(
             appointment: a,
             onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => setStatus(a['appointment_id'].toString(), 'completed') : null,
-            onNoShow: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true && (DateTime.tryParse(a['starts_at'].toString())?.isBefore(DateTime.now()) ?? false) ? () => setStatus(a['appointment_id'].toString(), 'no_show') : null,
+            onNoShow: canMarkAppointmentNoShow(a) ? () => setStatus(a['appointment_id'].toString(), 'no_show') : null,
             onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => cancel(a['appointment_id'].toString()) : null,
           )),
         ]),
