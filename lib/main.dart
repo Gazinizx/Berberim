@@ -1045,7 +1045,7 @@ class _BarberPageState extends State<BarberPage> {
         onReject:a['requires_business_approval']==true?()=>_reviewRequest(a['appointment_id'].toString(),'reject'):null))
     ]));
   });
-  Widget _scopeTab(int index,String label,int count){final selected=appointmentScope==index;return GestureDetector(onTap:()=>setState(()=>{appointmentScope=index,appointmentFilter=0}),child:Container(padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:selected?gold:panel,borderRadius:BorderRadius.circular(14),border:Border.all(color:border)),child:Column(children:[Text(label,textAlign:TextAlign.center,style:TextStyle(color:selected?ink:ivory,fontWeight:FontWeight.w800,fontSize:11)),Text('$count randevu',style:TextStyle(color:selected?ink:muted,fontSize:10))])));}
+  Widget _scopeTab(int index,String label,int count){final selected=appointmentScope==index;return GestureDetector(onTap:()=>setState(() { appointmentScope=index; appointmentFilter=0; }),child:Container(padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:selected?gold:panel,borderRadius:BorderRadius.circular(14),border:Border.all(color:border)),child:Column(children:[Text(label,textAlign:TextAlign.center,style:TextStyle(color:selected?ink:ivory,fontWeight:FontWeight.w800,fontSize:11)),Text('$count randevu',style:TextStyle(color:selected?ink:muted,fontSize:10))])));}
   Widget _appointmentTab(int index, String label, int count) {
     final selected = appointmentFilter == index;
     return Expanded(child: GestureDetector(
