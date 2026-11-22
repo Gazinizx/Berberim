@@ -2578,6 +2578,7 @@ class _CustomerBookingFlowPageState extends State<CustomerBookingFlowPage> {
         nameKey: 'display_name',
         icon: Icons.person_outline_rounded,
         step: widget.businesses.length == 1 ? 1 : 2,
+        totalSteps: widget.businesses.length == 1 ? 3 : 4,
       );
       if (employee == null || !mounted) return;
 
@@ -2603,6 +2604,7 @@ class _CustomerBookingFlowPageState extends State<CustomerBookingFlowPage> {
         nameKey: 'name',
         icon: Icons.content_cut_rounded,
         step: widget.businesses.length == 1 ? 2 : 3,
+        totalSteps: widget.businesses.length == 1 ? 3 : 4,
         detailKey: 'price',
       );
       if (service == null || !mounted) return;
@@ -2613,6 +2615,7 @@ class _CustomerBookingFlowPageState extends State<CustomerBookingFlowPage> {
             business: business,
             employee: employee,
             service: service,
+            totalSteps: widget.businesses.length == 1 ? 3 : 4,
           ),
         ),
       );
@@ -2699,13 +2702,13 @@ class _CustomerBookingFlowPageState extends State<CustomerBookingFlowPage> {
   }
 }
 class CustomerRecordPickerPage extends StatelessWidget {
-  final String title,subtitle,nameKey;final String? detailKey;final List<Map<String,dynamic>> rows;final IconData icon;final int step;
-  const CustomerRecordPickerPage({super.key,required this.title,required this.subtitle,required this.rows,required this.nameKey,required this.icon,required this.step,this.detailKey});
+  final String title,subtitle,nameKey;final String? detailKey;final List<Map<String,dynamic>> rows;final IconData icon;final int step;final int totalSteps;
+  const CustomerRecordPickerPage({super.key,required this.title,required this.subtitle,required this.rows,required this.nameKey,required this.icon,required this.step,this.detailKey,this.totalSteps=4});
   @override Widget build(BuildContext context)=>Scaffold(
-    appBar:AppBar(title:Text('$step / 4 · $title')),
+    appBar:AppBar(title:Text('$step / $totalSteps · $title')),
     body:ListView(padding:const EdgeInsets.fromLTRB(18,12,18,28),children:[
-      ScreenHeading(eyebrow:'ADIM $step / 4',title:title,subtitle:subtitle,icon:icon),
-      Container(height:5,margin:const EdgeInsets.only(bottom:20),decoration:BoxDecoration(color:border,borderRadius:BorderRadius.circular(10)),child:FractionallySizedBox(alignment:Alignment.centerLeft,widthFactor:step/4,child:Container(decoration:BoxDecoration(color:gold,borderRadius:BorderRadius.circular(10))))),
+      ScreenHeading(eyebrow:'ADIM $step / $totalSteps',title:title,subtitle:subtitle,icon:icon),
+      Container(height:5,margin:const EdgeInsets.only(bottom:20),decoration:BoxDecoration(color:border,borderRadius:BorderRadius.circular(10)),child:FractionallySizedBox(alignment:Alignment.centerLeft,widthFactor:step/totalSteps,child:Container(decoration:BoxDecoration(color:gold,borderRadius:BorderRadius.circular(10))))),
       ...rows.map((row)=>Container(margin:const EdgeInsets.only(bottom:11),decoration:BoxDecoration(color:panel,borderRadius:BorderRadius.circular(20),border:Border.all(color:border)),child:Material(color:Colors.transparent,child:InkWell(borderRadius:BorderRadius.circular(20),onTap:()=>Navigator.of(context).pop(row),child:Padding(padding:const EdgeInsets.all(15),child:Row(children:[
         Container(width:45,height:45,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(14)),child:Icon(icon,color:gold)),
         const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -2719,7 +2722,8 @@ class CustomerRecordPickerPage extends StatelessWidget {
 
 class CustomerDateTimePage extends StatefulWidget {
   final Map<String,dynamic> business,employee,service;
-  const CustomerDateTimePage({super.key,required this.business,required this.employee,required this.service});
+  final int totalSteps;
+  const CustomerDateTimePage({super.key,required this.business,required this.employee,required this.service,this.totalSteps=4});
   @override State<CustomerDateTimePage> createState()=>_CustomerDateTimePageState();
 }
 class _CustomerDateTimePageState extends State<CustomerDateTimePage> {
@@ -2752,7 +2756,7 @@ class _CustomerDateTimePageState extends State<CustomerDateTimePage> {
     finally{if(mounted)setState(()=>busy=false);}
   }
   @override Widget build(BuildContext context)=>Scaffold(
-    appBar:AppBar(title:const Text('4 / 4 · Tarih ve saat')),
+    appBar:AppBar(title:Text('$totalSteps / $totalSteps · Tarih ve saat')),
     body:ListView(padding:const EdgeInsets.fromLTRB(18,12,18,30),children:[
       const ScreenHeading(eyebrow:'SON ADIM',title:'Zamanını belirle',subtitle:'Sana uygun günü ve müsait saati seç.',icon:Icons.calendar_month_rounded),
       Container(padding:const EdgeInsets.all(17),decoration:BoxDecoration(color:panel,borderRadius:BorderRadius.circular(22),border:Border.all(color:border)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
