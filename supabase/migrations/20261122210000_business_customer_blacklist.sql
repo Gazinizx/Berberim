@@ -73,6 +73,8 @@ set search_path = ''
 as $function$
 begin
   if old.status is distinct from new.status and new.status = 'no_show' then
+    if auth.uid() is null then raise exception 'Giriş yapmalısınız'; end if;
+
     insert into public.business_customer_controls (
       business_id, customer_id, no_show_count, is_blacklisted,
       blacklist_reason, blacklisted_at, updated_at
@@ -415,8 +417,15 @@ begin
 
   if not found then
     if p_status = 'no_show' and exists (
-      select 1 from public.appointments a
-      where a.id = p_appointment_id and a.starts_at > now()
+      select 1
+      from public.appointments a
+      where a.id = p_appointment_id
+        and a.starts_at > now()
+        and (
+          exists(select 1 from public.businesses b where b.id = a.business_id and b.owner_id = auth.uid())
+          or exists(select 1 from public.employees e where e.id = a.employee_id and e.user_id = auth.uid())
+          or (select private.is_admin())
+        )
     ) then
       raise exception 'Randevu saati gelmeden müşteri devamsız olarak işaretlenemez';
     end if;
