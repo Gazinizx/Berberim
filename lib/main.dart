@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:berberim/push_notifications.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -13,6 +16,11 @@ const border = Color(0xFF30333A);
 const panelRaised = Color(0xFF1D2026);
 const goldShadow = Color(0x26D8B36A);
 final sb = Supabase.instance.client;
+
+Future<void> signOutBerberim() async {
+  await PushNotifications.unregister(sb);
+  await sb.auth.signOut();
+}
 String get uid => sb.auth.currentUser!.id;
 String err(Object e) => e.toString().replaceFirst('Exception: ', '').replaceFirst('PostgrestException(message: ', '');
 
@@ -26,6 +34,7 @@ String normalizeBusinessJoinCode(String raw) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await PushNotifications.initialize();
   const url = String.fromEnvironment('SUPABASE_URL');
   const key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
   if (url.isNotEmpty && key.isNotEmpty) {
@@ -425,6 +434,7 @@ class _AuthGateState extends State<AuthGate> {
       }
       if (_loadedUid != user.id) {
         _loadedUid = user.id;
+        unawaited(PushNotifications.register(supabase: sb, userId: user.id));
         _profileFuture = _loadProfile(user.id);
         _businessesFuture = null;
       }
@@ -477,7 +487,7 @@ class BlockedPage extends StatelessWidget {
       const SizedBox(height: 9),
       const Text('Hesabın yönetim tarafından geçici olarak kısıtlandı. Detaylar için işletme yönetimiyle iletişime geçebilirsin.', textAlign: TextAlign.center, style: TextStyle(color: muted, height: 1.5)),
       const SizedBox(height: 22),
-      SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: () => sb.auth.signOut(), icon: const Icon(Icons.logout_rounded), label: const Text('Çıkış yap'))),
+      SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: signOutBerberim, icon: const Icon(Icons.logout_rounded), label: const Text('Çıkış yap'))),
     ]))),
   )));
 }
@@ -559,7 +569,7 @@ class _ProfilePageState extends State<ProfilePage>{
  final name=TextEditingController(),phone=TextEditingController(),shop=TextEditingController(),address=TextEditingController();bool busy=false;String message='';
  Future<void> save()async{setState(()=>busy=true);message='';try{if(name.text.trim().length<2)throw Exception('Ad soyad en az 2 karakter olmalı');if(shop.text.trim().length<2)throw Exception('İşletme adı en az 2 karakter olmalı');await sb.from('profiles').update({'full_name':name.text.trim(),'phone':phone.text.trim()}).eq('id',uid);await sb.rpc('create_business_application',params:{'p_name':shop.text.trim(),'p_address':address.text.trim().isEmpty?null:address.text.trim()});}catch(e){message=err(e);}if(mounted){setState(()=>busy=false);if(message.isEmpty)Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder:(_)=>const AuthGate()),(r)=>false);}}
  @override Widget build(BuildContext c)=>Scaffold(
-  appBar:AppBar(title:const Text('İşletme başvurusu'),actions:[IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),
+  appBar:AppBar(title:const Text('İşletme başvurusu'),actions:[IconButton(tooltip:'Çıkış yap',onPressed:()=>signOutBerberim(),icon:const Icon(Icons.logout_rounded))]),
   body:ListView(padding:const EdgeInsets.fromLTRB(20,12,20,30),children:[
    const ScreenHeading(eyebrow:'BERBERİM İŞ ORTAĞI',title:'İşletmeni tanıtalım',subtitle:'Bilgilerini paylaş, başvurunu inceleyelim. Onaydan sonra işletme panelin açılacak.',icon:Icons.storefront_rounded),
    AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
@@ -590,7 +600,7 @@ class PendingPage extends StatelessWidget {const PendingPage({super.key,required
   final rejected=status=='rejected', inactive=status=='inactive';
   final title=rejected?'Başvurun reddedildi':inactive?'İşletmen devre dışı':'Başvurun inceleniyor';
   final description=status=='pending'?'Başvurunu aldık. Yönetici incelemesi tamamlandığında işletme panelin otomatik olarak açılacak.':'Başvuru durumunla ilgili detaylı bilgi almak için yönetimle iletişime geçebilirsin.';
-  return Scaffold(appBar:AppBar(title:const Text('Başvuru durumu'),actions:[IconButton(onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),body:Center(child:SingleChildScrollView(padding:const EdgeInsets.all(24),child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:440),child:AppPanel(padding:const EdgeInsets.all(26),child:Column(mainAxisSize:MainAxisSize.min,children:[
+  return Scaffold(appBar:AppBar(title:const Text('Başvuru durumu'),actions:[IconButton(onPressed:()=>signOutBerberim(),icon:const Icon(Icons.logout_rounded))]),body:Center(child:SingleChildScrollView(padding:const EdgeInsets.all(24),child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:440),child:AppPanel(padding:const EdgeInsets.all(26),child:Column(mainAxisSize:MainAxisSize.min,children:[
    Container(width:76,height:76,decoration:BoxDecoration(color:(rejected?Colors.redAccent:gold).withValues(alpha:.12),borderRadius:BorderRadius.circular(24)),child:Icon(rejected?Icons.info_outline_rounded:inactive?Icons.pause_circle_outline_rounded:Icons.hourglass_top_rounded,color:rejected?Colors.redAccent:gold,size:38)),
    const SizedBox(height:22),
    StatusTag(rejected?'REDDEDİLDİ':inactive?'PASİF':'İNCELEMEDE',color:rejected?Colors.redAccent:gold),
@@ -689,7 +699,7 @@ class _AdminPageState extends State<AdminPage>{
  @override Widget build(BuildContext c){
   final pages=[dashboard(),businesses(),users(),appointments()];
   return Scaffold(
-   appBar:AppBar(title:const Text('Yönetim merkezi'),actions:[IconButton(tooltip:'Yenile',onPressed:()=>setState((){}),icon:const Icon(Icons.refresh_rounded)),IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded))]),
+   appBar:AppBar(title:const Text('Yönetim merkezi'),actions:[IconButton(tooltip:'Yenile',onPressed:()=>setState((){}),icon:const Icon(Icons.refresh_rounded)),IconButton(tooltip:'Çıkış yap',onPressed:()=>signOutBerberim(),icon:const Icon(Icons.logout_rounded))]),
    body:pages[tab],
    bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const [
     NavigationDestination(icon:Icon(Icons.dashboard_outlined),selectedIcon:Icon(Icons.dashboard_rounded),label:'Genel'),
@@ -722,6 +732,13 @@ class _BusinessOverviewPageState extends State<BusinessOverviewPage> {
     try { await sb.rpc('cancel_appointment', params: {'p_appointment_id': id}); await refresh(); }
     catch (e) { if (mounted) toast(context, err(e)); }
   }
+  Future<void> reviewRequest(String id, String decision) async {
+    try {
+      await sb.rpc('review_appointment_request', params: {'p_appointment_id': id, 'p_decision': decision});
+      await refresh();
+      if (mounted) toast(context, decision == 'approve' ? 'Özel randevu onaylandı' : 'Özel randevu talebi reddedildi');
+    } catch (e) { if (mounted) toast(context, err(e)); }
+  }
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Genel bakış'), actions: [IconButton(tooltip: 'Yenile', onPressed: refresh, icon: const Icon(Icons.refresh_rounded))]),
     body: FutureBuilder<List<Map<String, dynamic>>>(future: appointmentsFuture, builder: (context, snapshot) {
@@ -740,8 +757,10 @@ class _BusinessOverviewPageState extends State<BusinessOverviewPage> {
         if (rows.isEmpty) const AppPanel(child: EmptyStateView(icon: Icons.event_busy_rounded, title: 'Randevu bulunmuyor', subtitle: 'İşletmene gelen tüm randevular burada listelenecek.')),
         ...rows.map((a) => BusinessAppointmentCard(
           appointment: a, showEmployee: true,
-          onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => setStatus(a['appointment_id'].toString(), 'completed') : null,
-          onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => cancel(a['appointment_id'].toString()) : null,
+          onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => setStatus(a['appointment_id'].toString(), 'completed') : null,
+          onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => cancel(a['appointment_id'].toString()) : null,
+          onApprove: a['requires_business_approval'] == true ? () => reviewRequest(a['appointment_id'].toString(), 'approve') : null,
+          onReject: a['requires_business_approval'] == true ? () => reviewRequest(a['appointment_id'].toString(), 'reject') : null,
         )),
       ]);
     }),
@@ -947,8 +966,10 @@ class _BarberPageState extends State<BarberPage> {
       if (rows.isEmpty) const AppPanel(child: EmptyStateView(icon: Icons.event_busy_rounded, title: 'Henüz randevun yok', subtitle: 'Sana ait yeni randevular burada listelenecek.')),
       ...rows.map((a) => BusinessAppointmentCard(
         appointment: a,
-        onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => _setStatus(a['appointment_id'].toString(), 'completed') : null,
-        onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => _cancel(a['appointment_id'].toString()) : null,
+        onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => _setStatus(a['appointment_id'].toString(), 'completed') : null,
+        onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => _cancel(a['appointment_id'].toString()) : null,
+        onApprove: a['requires_business_approval'] == true ? () => _reviewRequest(a['appointment_id'].toString(), 'approve') : null,
+        onReject: a['requires_business_approval'] == true ? () => _reviewRequest(a['appointment_id'].toString(), 'reject') : null,
       )),
     ]);
   });
@@ -966,6 +987,13 @@ class _BarberPageState extends State<BarberPage> {
   Future<void> _cancel(String id) async {
     try { await sb.rpc('cancel_appointment', params: {'p_appointment_id': id}); await refresh(); }
     catch (e) { if (mounted) toast(context, err(e)); }
+  }
+  Future<void> _reviewRequest(String id, String decision) async {
+    try {
+      await sb.rpc('review_appointment_request', params: {'p_appointment_id': id, 'p_decision': decision});
+      await refresh();
+      if (mounted) toast(context, decision == 'approve' ? 'Özel randevu onaylandı' : 'Özel randevu talebi reddedildi');
+    } catch (e) { if (mounted) toast(context, err(e)); }
   }
 
   Widget _employeesPage() => ListView(padding: const EdgeInsets.fromLTRB(18, 16, 18, 28), children: [
@@ -1067,7 +1095,7 @@ class _BarberPageState extends State<BarberPage> {
     appBar: AppBar(title: Text(widget.business['name'] ?? 'İşletme paneli'), actions: [
       IconButton(tooltip: 'Tüm randevular', onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BusinessOverviewPage(business: widget.business))), icon: const Icon(Icons.dashboard_outlined)),
       notificationAction(context),
-      IconButton(tooltip: 'Çıkış yap', onPressed: () => sb.auth.signOut(), icon: const Icon(Icons.logout_rounded)),
+      IconButton(tooltip: 'Çıkış yap', onPressed: () => signOutBerberim(), icon: const Icon(Icons.logout_rounded)),
     ]),
     body: IndexedStack(index: tab, children: [
       _homePage(), _appointmentsPage(), _employeesPage(), _servicesPage(), _settingsPage(),
@@ -1127,11 +1155,13 @@ String appointmentDateTimeLabel(Object? value) {
   return '$date • $time';
 }
 class BusinessAppointmentCard extends StatelessWidget {
-  const BusinessAppointmentCard({super.key, required this.appointment, this.showEmployee = false, this.onComplete, this.onCancel});
+  const BusinessAppointmentCard({super.key, required this.appointment, this.showEmployee = false, this.onComplete, this.onCancel, this.onApprove, this.onReject});
   final Map<String, dynamic> appointment;
   final bool showEmployee;
   final VoidCallback? onComplete;
   final VoidCallback? onCancel;
+  final VoidCallback? onApprove;
+  final VoidCallback? onReject;
 
   @override Widget build(BuildContext context) {
     final status = (appointment['status'] ?? '').toString();
@@ -1161,7 +1191,9 @@ class BusinessAppointmentCard extends StatelessWidget {
               Padding(padding: const EdgeInsets.only(top: 4), child: Text('Çalışan: ${appointment['employee_name']}', style: const TextStyle(color: muted, fontSize: 11))),
           ])),
           const SizedBox(width: 6),
-          StatusTag(appointmentStatusLabel(status), color: statusColor),
+          appointment['requires_business_approval'] == true
+              ? const StatusTag('ÖZEL ONAY', color: Colors.orangeAccent)
+              : StatusTag(appointmentStatusLabel(status), color: statusColor),
         ]),
         const SizedBox(height: 14),
         Container(
@@ -1176,7 +1208,14 @@ class BusinessAppointmentCard extends StatelessWidget {
             Text(time, style: const TextStyle(color: goldLight, fontSize: 15, fontWeight: FontWeight.w900)),
           ]),
         ),
-        if (active && (onComplete != null || onCancel != null)) ...[
+        if (active && appointment['requires_business_approval'] == true && (onApprove != null || onReject != null)) ...[
+          const SizedBox(height: 12),
+          Row(children: [
+            if (onApprove != null) Expanded(child: ElevatedButton.icon(onPressed: onApprove, icon: const Icon(Icons.check_rounded, size: 17), label: const Text('Onayla'))),
+            if (onApprove != null && onReject != null) const SizedBox(width: 9),
+            if (onReject != null) Expanded(child: OutlinedButton.icon(onPressed: onReject, icon: const Icon(Icons.close_rounded, size: 17), label: const Text('Reddet'))),
+          ]),
+        ] else if (active && appointment['requires_business_approval'] != true && (onComplete != null || onCancel != null)) ...[
           const SizedBox(height: 12),
           Row(children: [
             if (onComplete != null) Expanded(child: OutlinedButton.icon(onPressed: onComplete, icon: const Icon(Icons.check_circle_outline_rounded, size: 17), label: const Text('Tamamlandı'))),
@@ -1225,7 +1264,7 @@ class _EmployeePageState extends State<EmployeePage> {
     appBar: AppBar(title: Text(widget.employee['businesses']?['name'] ?? 'Çalışan paneli'), actions: [
       notificationAction(context),
       IconButton(tooltip: 'Yenile', onPressed: refresh, icon: const Icon(Icons.refresh_rounded)),
-      IconButton(tooltip: 'Çıkış yap', onPressed: () => sb.auth.signOut(), icon: const Icon(Icons.logout_rounded)),
+      IconButton(tooltip: 'Çıkış yap', onPressed: () => signOutBerberim(), icon: const Icon(Icons.logout_rounded)),
     ]),
     body: FutureBuilder<List<Map<String, dynamic>>>(future: appointmentsFuture, builder: (context, snap) {
       if (snap.connectionState != ConnectionState.done) return const LoadingPage();
@@ -1491,7 +1530,7 @@ class _CustomerAppointmentsPageState extends State<CustomerAppointmentsPage> {
 
   Future<List<Map<String, dynamic>>> _load() async {
     final rows = await sb.from('appointments')
-        .select('id,starts_at,ends_at,status,businesses(name),services(name)')
+        .select('id,starts_at,ends_at,status,requires_business_approval,businesses(name),services(name)')
         .eq('customer_id', uid)
         .order('starts_at', ascending: false)
         .limit(100);
@@ -1742,7 +1781,7 @@ class _CustomerAppointmentCategoryPageState
 
   Future<List<Map<String, dynamic>>> _load() async {
     final rows = await sb.from('appointments')
-        .select('id,starts_at,ends_at,status,businesses(name),services(name)')
+        .select('id,starts_at,ends_at,status,requires_business_approval,businesses(name),services(name)')
         .eq('customer_id', uid)
         .order('starts_at', ascending: false)
         .limit(100);
@@ -1814,7 +1853,12 @@ class _CustomerAppointmentCategoryPageState
                 ),
               ],
             )),
-            StatusTag(appointmentStatusLabel(status), color: color),
+            StatusTag(
+              appointment['requires_business_approval'] == true
+                  ? 'İŞLETME ONAYI BEKLENİYOR'
+                  : appointmentStatusLabel(status),
+              color: appointment['requires_business_approval'] == true ? Colors.orangeAccent : color,
+            ),
           ]),
           const SizedBox(height: 13),
           Container(
@@ -1979,7 +2023,7 @@ class _CustomerPageState extends State<CustomerPage>{
     IconButton(tooltip:'Randevularım',onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.event_note_rounded)),
     notificationAction(context),
     PopupMenuButton<String>(onSelected:(v){if(v=='profile')_profile();},itemBuilder:(_)=>const [PopupMenuItem(value:'profile',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.person_outline_rounded),title:Text('Profilim')))]),
-    IconButton(tooltip:'Çıkış yap',onPressed:()=>sb.auth.signOut(),icon:const Icon(Icons.logout_rounded)),
+    IconButton(tooltip:'Çıkış yap',onPressed:()=>signOutBerberim(),icon:const Icon(Icons.logout_rounded)),
    ],
   ),
   body:FutureBuilder<List<Map<String,dynamic>>>(future:memberships,builder:(c,s){
@@ -2122,8 +2166,13 @@ class _CustomerDateTimePageState extends State<CustomerDateTimePage>{
   setState(()=>busy=true);
   try{
    final p=selectedTime.split(':').map(int.parse).toList();final local=DateTime(day.year,day.month,day.day,p[0],p[1]);
-   await sb.rpc('book_appointment',params:{'p_business_id':widget.business['id'],'p_employee_id':widget.employee['id'],'p_service_id':widget.service['id'],'p_starts_at':local.toUtc().toIso8601String()});
-   if(!mounted)return;toast(context,'Randevun oluşturuldu');Navigator.of(context).popUntil((r)=>r.isFirst);
+   final appointmentId = await sb.rpc('book_appointment',params:{'p_business_id':widget.business['id'],'p_employee_id':widget.employee['id'],'p_service_id':widget.service['id'],'p_starts_at':local.toUtc().toIso8601String()});
+   final booking = await sb.from('appointments').select('requires_business_approval').eq('id', appointmentId.toString()).maybeSingle();
+   if(!mounted)return;
+   toast(context, booking?['requires_business_approval'] == true
+       ? 'Üç kez randevuna gelmediğin için işletme onayı bekleniyor.'
+       : 'Randevun oluşturuldu');
+   Navigator.of(context).popUntil((r)=>r.isFirst);
   }catch(e){if(mounted)toast(context,err(e));}
   finally{if(mounted)setState(()=>busy=false);}
  }

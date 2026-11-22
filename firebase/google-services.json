@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "986136569461",
+    "project_id": "berber-553d6",
+    "storage_bucket": "berber-553d6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:986136569461:android:90ed03504babcde6a8fa3c",
+        "android_client_info": {
+          "package_name": "com.gazinizx.berberim"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAfQJLK_9RRWogKaqf8eGpiJ6Ow0v7YTg8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
