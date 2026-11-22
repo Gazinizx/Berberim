@@ -595,7 +595,7 @@ class _LoginPageState extends State<LoginPage>{
         const SizedBox(height:20),
         SizedBox(height:54,child:ElevatedButton(onPressed:busy?null:submit,child:busy?const SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2,color:ink)):Text(create?'Hesap oluştur':'Giriş yap'))),
         const SizedBox(height:8),
-        Center(child:TextButton(onPressed:busy?null:()=>setState(()=>{create=!create,message=''}),child:Text(create?'Zaten hesabın var mı? Giriş yap':'Yeni misin? Hesap oluştur'))),
+        Center(child:TextButton(onPressed:busy?null:()=>setState(() { create=!create; message=''; }),child:Text(create?'Zaten hesabın var mı? Giriş yap':'Yeni misin? Hesap oluştur'))),
        ]),
       ),
       const SizedBox(height:18),
