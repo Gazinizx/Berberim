@@ -43,13 +43,47 @@ function encodeJson(value: Record<string, unknown>): string {
 }
 
 function pemToBytes(pem: string): Uint8Array {
-  const normalized = pem.replace(/\\n/g, "\n");
-  const body = normalized
-    .replace("-----BEGIN PRIVATE KEY-----", "")
-    .replace("-----END PRIVATE KEY-----", "")
-    .replace(/\s/g, "");
-  const binary = atob(body);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  const normalized = pem.replace(/\\n/g, "\n").trim();
+  const match = normalized.match(
+    /-----BEGIN ([A-Z0-9 ]+)-----([\\s\\S]*?)-----END \\1-----/,
+  );
+  if (!match) {
+    throw new Error("FCM_PRIVATE_KEY is not a valid PEM private key");
+  }
+  if (match[1] !== "PRIVATE KEY") {
+    throw new Error("FCM_PRIVATE_KEY must use PKCS#8 PEM format");
+  }
+
+  const base64 = match[2].replace(/[^A-Za-z0-9+/=]/g, "");
+  const binary = atob(base64);
+  const decoded = Uint8Array.from(
+    binary,
+    (character) => character.charCodeAt(0),
+  );
+
+  // Some secret managers preserve a few trailing bytes after the DER object.
+  // WebCrypto rejects those bytes even though the PKCS#8 key itself is valid.
+  if (decoded[0] !== 0x30 || decoded.length < 4) {
+    throw new Error("FCM_PRIVATE_KEY contains invalid PKCS#8 DER data");
+  }
+  let contentLength = decoded[1];
+  let headerLength = 2;
+  if ((contentLength & 0x80) !== 0) {
+    const lengthBytes = contentLength & 0x7f;
+    if (lengthBytes === 0 || lengthBytes > 4 || decoded.length < 2 + lengthBytes) {
+      throw new Error("FCM_PRIVATE_KEY contains invalid DER length");
+    }
+    contentLength = 0;
+    for (let index = 0; index < lengthBytes; index++) {
+      contentLength = contentLength * 256 + decoded[2 + index];
+    }
+    headerLength += lengthBytes;
+  }
+  const derEnd = headerLength + contentLength;
+  if (derEnd > decoded.length) {
+    throw new Error("FCM_PRIVATE_KEY contains truncated DER data");
+  }
+  return decoded.slice(0, derEnd);
 }
 
 async function getFcmAccessToken(): Promise<string> {
