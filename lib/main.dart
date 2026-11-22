@@ -1973,7 +1973,7 @@ class _CustomerPageState extends State<CustomerPage> {
 
  Future<void> _join() async {
   final code = await Navigator.of(context).push<String>(MaterialPageRoute(builder:(_)=>const CustomerQrScannerPage()));
-  if(code==null || code.trim().isEmpty) return;
+  if(code==null || code.trim().isEmpty) { if(mounted)setState(()=>_tab=0); return; }
   try {
    await sb.rpc('join_business_by_code',params:{'p_code':code.trim().toUpperCase()});
    if(!mounted)return;
@@ -2084,7 +2084,7 @@ class _CustomerPageState extends State<CustomerPage> {
    destinations:const [
     NavigationDestination(icon:Icon(Icons.home_outlined),selectedIcon:Icon(Icons.home_rounded),label:'Ana Sayfa'),
     NavigationDestination(icon:Icon(Icons.calendar_month_outlined),selectedIcon:Icon(Icons.calendar_month_rounded),label:'Randevularım'),
-    NavigationDestination(icon:Icon(Icons.search_rounded),label:'Keşfet'),
+    NavigationDestination(icon:Icon(Icons.qr_code_scanner_rounded),label:'Dükkân Ekle'),
     NavigationDestination(icon:Icon(Icons.person_outline_rounded),selectedIcon:Icon(Icons.person_rounded),label:'Profil'),
    ],
   ),
