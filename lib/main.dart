@@ -2573,16 +2573,26 @@ class _CustomerBookingFlowPageState extends State<CustomerBookingFlowPage> {
         return;
       }
 
-      final employee = await _pick(
-        title: 'Berberini seç',
-        subtitle: 'Hizmet alacağın uzmanı belirle.',
-        rows: employees,
-        nameKey: 'display_name',
-        icon: Icons.person_outline_rounded,
-        step: widget.businesses.length == 1 ? 1 : 2,
-        totalSteps: widget.businesses.length == 1 ? 3 : 4,
-      );
-      if (employee == null || !mounted) return;
+      final businessSelectionSteps = widget.businesses.length > 1 ? 1 : 0;
+      final employeeSelectionSteps = employees.length > 1 ? 1 : 0;
+      final totalSteps = businessSelectionSteps + employeeSelectionSteps + 2;
+      late final Map<String, dynamic> employee;
+
+      if (employees.length == 1) {
+        employee = employees.first;
+      } else {
+        final selectedEmployee = await _pick(
+          title: 'Berberini seç',
+          subtitle: 'Hizmet alacağın uzmanı belirle.',
+          rows: employees,
+          nameKey: 'display_name',
+          icon: Icons.person_outline_rounded,
+          step: businessSelectionSteps + 1,
+          totalSteps: totalSteps,
+        );
+        if (selectedEmployee == null || !mounted) return;
+        employee = selectedEmployee;
+      }
 
       final serviceRows = await sb
           .from('services')
@@ -2605,8 +2615,8 @@ class _CustomerBookingFlowPageState extends State<CustomerBookingFlowPage> {
         rows: services,
         nameKey: 'name',
         icon: Icons.content_cut_rounded,
-        step: widget.businesses.length == 1 ? 2 : 3,
-        totalSteps: widget.businesses.length == 1 ? 3 : 4,
+        step: businessSelectionSteps + employeeSelectionSteps + 1,
+        totalSteps: totalSteps,
         detailKey: 'price',
       );
       if (service == null || !mounted) return;
@@ -2617,7 +2627,7 @@ class _CustomerBookingFlowPageState extends State<CustomerBookingFlowPage> {
             business: business,
             employee: employee,
             service: service,
-            totalSteps: widget.businesses.length == 1 ? 3 : 4,
+            totalSteps: totalSteps,
           ),
         ),
       );
