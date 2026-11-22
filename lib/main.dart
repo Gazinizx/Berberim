@@ -22,6 +22,28 @@ Future<void> signOutBerberim() async {
   await PushNotifications.unregister(sb);
   await sb.auth.signOut();
 }
+
+Future<void> confirmSignOut(BuildContext context) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Çıkış yapmak istiyor musun?'),
+      content: const Text('Hesabından güvenli şekilde çıkış yapacaksın.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('Vazgeç'),
+        ),
+        FilledButton.icon(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          icon: const Icon(Icons.logout_rounded, size: 17),
+          label: const Text('Çıkış yap'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed == true) await signOutBerberim();
+}
 String get uid => sb.auth.currentUser!.id;
 String err(Object e) => e.toString().replaceFirst('Exception: ', '').replaceFirst('PostgrestException(message: ', '');
 
@@ -521,54 +543,69 @@ class _LoginPageState extends State<LoginPage>{
  Future<void> submit() async {setState(()=>busy=true);message='';try{if(create){if(pass.text.length<8)throw Exception('Şifre en az 8 karakter olmalı.');final data=<String,dynamic>{'account_type':accountType};if(accountType=='customer'){if(firstName.text.trim().length<2||lastName.text.trim().length<2)throw Exception('Ad ve soyad zorunludur.');final digits=phone.text.replaceAll(RegExp(r'[^0-9]'),'');if(digits.length<10||digits.length>11)throw Exception('Geçerli telefon numarası gir.');data.addAll({'first_name':firstName.text.trim(),'last_name':lastName.text.trim(),'full_name':firstName.text.trim()+' '+lastName.text.trim(),'phone':phone.text.trim()});}final result=await sb.auth.signUp(email:email.text.trim(),password:pass.text,emailRedirectTo:'berberim://login-callback',data:data);if(result.session==null)message='Doğrulama e-postası gönderildi. E-postandaki bağlantıya dokun; Berberim uygulaması açılacak.';}else{await sb.auth.signInWithPassword(email:email.text.trim(),password:pass.text);}}catch(e){message=err(e);}if(mounted)setState(()=>busy=false);}
  @override Widget build(BuildContext c)=>Scaffold(
   body: Stack(children: [
-   Positioned(top:-120,right:-90,child:Container(width:300,height:300,decoration:BoxDecoration(shape:BoxShape.circle,color:gold.withValues(alpha:.045)))),
-   SafeArea(child: Center(child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(24,30,24,30), child: ConstrainedBox(
-    constraints: const BoxConstraints(maxWidth: 440),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-     const BrandMark(),
-     const SizedBox(height: 34),
-     AppPanel(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text(create ? 'Hesabını oluştur' : 'Tekrar hoş geldin', style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, letterSpacing: -.5)),
-      const SizedBox(height: 6),
-      Text(create ? 'Berberim ile randevularını kolayca yönet.' : 'Devam etmek için hesabına giriş yap.', style: const TextStyle(color: muted, fontSize: 13)),
-      if(create)...[
-       const SizedBox(height: 22),
-       const FieldLabel('HESAP TÜRÜ'),
-       SegmentedButton<String>(
-        showSelectedIcon: false,
-        segments: const [
-         ButtonSegment(value:'customer',label:Text('Müşteri'),icon:Icon(Icons.person_outline_rounded)),
-         ButtonSegment(value:'business_owner',label:Text('İşletme'),icon:Icon(Icons.storefront_outlined)),
-        ],
-        selected:{accountType}, onSelectionChanged:(v)=>setState(()=>accountType=v.first),
+   Positioned(top:-145,right:-115,child:Container(width:360,height:360,decoration:BoxDecoration(shape:BoxShape.circle,color:gold.withValues(alpha:.075)))),
+   Positioned(bottom:-190,left:-130,child:Container(width:340,height:340,decoration:BoxDecoration(shape:BoxShape.circle,color:goldLight.withValues(alpha:.035)))),
+   SafeArea(child: Center(child: SingleChildScrollView(
+    padding: const EdgeInsets.fromLTRB(22,26,22,28),
+    child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 440),child: Column(
+     crossAxisAlignment: CrossAxisAlignment.stretch,
+     children: [
+      const BrandMark(),
+      const SizedBox(height: 28),
+      Container(
+       padding: const EdgeInsets.fromLTRB(21,22,21,20),
+       decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(begin: Alignment.topLeft,end: Alignment.bottomRight,colors:[Color(0xFF24211C),Color(0xFF17191E),Color(0xFF121317)]),
+        border: Border.all(color: gold.withValues(alpha:.24)),
+        boxShadow: const [BoxShadow(color: Color(0x33000000),blurRadius:32,offset:Offset(0,16))],
        ),
-      ],
-      if(create&&accountType=='customer')...[
-       const SizedBox(height:16),const FieldLabel('ADIN'),
-       TextField(controller:firstName,textCapitalization:TextCapitalization.words,decoration:const InputDecoration(hintText:'Adın')),
-       const SizedBox(height:10),const FieldLabel('SOYADIN'),
-       TextField(controller:lastName,textCapitalization:TextCapitalization.words,decoration:const InputDecoration(hintText:'Soyadın')),
-       const SizedBox(height:10),const FieldLabel('TELEFON'),
-       TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(hintText:'05xx xxx xx xx')),
-      ],
-      const SizedBox(height: 20),
-      const FieldLabel('E-POSTA ADRESİ'),
-      TextField(controller:email,keyboardType:TextInputType.emailAddress,autofillHints:const [AutofillHints.email],decoration:const InputDecoration(hintText:'ornek@email.com',prefixIcon:Icon(Icons.mail_outline_rounded))),
-      const SizedBox(height: 16),
-      const FieldLabel('ŞİFRE'),
-      TextField(controller:pass,obscureText:true,autofillHints:const [AutofillHints.password],decoration:const InputDecoration(hintText:'Şifreni gir',prefixIcon:Icon(Icons.lock_outline_rounded))),
-      if(create&&accountType=='business_owner')const Padding(padding:EdgeInsets.only(top:12),child:Text('İşletme hesabı yönetici onayından sonra açılır.',style:TextStyle(color:muted,fontSize:12))),
-      if(message.isNotEmpty)Container(margin:const EdgeInsets.only(top:16),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:(message.startsWith('Doğrulama e-postası gönderildi')?Colors.greenAccent:Colors.redAccent).withValues(alpha:.09),borderRadius:BorderRadius.circular(13)),child:Text(message,style:TextStyle(color:message.startsWith('Doğrulama e-postası gönderildi')?Colors.greenAccent:Colors.redAccent,fontSize:12,height:1.4))),
-      const SizedBox(height: 22),
-      SizedBox(height:54,child:ElevatedButton(onPressed:busy?null:submit,child:busy?const SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2,color:ink)):Text(create?'Hesap oluştur':'Giriş yap'))),
-      const SizedBox(height: 10),
-      Center(child:TextButton(onPressed:()=>setState(()=>create=!create),child:Text(create?'Zaten hesabın var mı? Giriş yap':'Hesabın yok mu? Kayıt ol'))),
-     ]),
-     ),
-     const SizedBox(height: 20),
-     const Center(child:Text('GÜVENLİ • KOLAY • KİŞİSEL',style:TextStyle(color:muted,fontSize:10,letterSpacing:1.8,fontWeight:FontWeight.w700))),
-    ]),
-   )))),
+       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,children:[
+        Container(width:48,height:48,alignment:Alignment.center,decoration:BoxDecoration(color:gold.withValues(alpha:.13),borderRadius:BorderRadius.circular(16)),child:Icon(create?Icons.person_add_alt_1_rounded:Icons.lock_open_rounded,color:goldLight,size:23)),
+        const SizedBox(height:18),
+        Text(create?'Berberim’e katıl':'Tekrar hoş geldin',style:const TextStyle(fontSize:26,fontWeight:FontWeight.w900,letterSpacing:-.8)),
+        const SizedBox(height:6),
+        Text(create?'Hesabını oluştur, randevularını tek yerden yönet.':'Randevu deneyimine kaldığın yerden devam et.',style:const TextStyle(color:muted,fontSize:12,height:1.5)),
+        if(create)...[
+         const SizedBox(height:22),
+         const FieldLabel('HESAP TÜRÜ'),
+         SegmentedButton<String>(
+          showSelectedIcon:false,
+          segments:const [
+           ButtonSegment(value:'customer',label:Text('Müşteri'),icon:Icon(Icons.person_outline_rounded)),
+           ButtonSegment(value:'business_owner',label:Text('İşletme'),icon:Icon(Icons.storefront_outlined)),
+          ],
+          selected:{accountType},onSelectionChanged:(v)=>setState(()=>accountType=v.first),
+         ),
+        ],
+        if(create&&accountType=='customer')...[
+         const SizedBox(height:17),const FieldLabel('ADIN'),
+         TextField(controller:firstName,textCapitalization:TextCapitalization.words,decoration:const InputDecoration(hintText:'Adın',prefixIcon:Icon(Icons.person_outline_rounded))),
+         const SizedBox(height:11),const FieldLabel('SOYADIN'),
+         TextField(controller:lastName,textCapitalization:TextCapitalization.words,decoration:const InputDecoration(hintText:'Soyadın',prefixIcon:Icon(Icons.person_outline_rounded))),
+         const SizedBox(height:11),const FieldLabel('TELEFON'),
+         TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(hintText:'05xx xxx xx xx',prefixIcon:Icon(Icons.phone_outlined))),
+        ],
+        const SizedBox(height:19),const FieldLabel('E-POSTA ADRESİ'),
+        TextField(controller:email,keyboardType:TextInputType.emailAddress,autofillHints:const [AutofillHints.email],decoration:const InputDecoration(hintText:'ornek@email.com',prefixIcon:Icon(Icons.mail_outline_rounded))),
+        const SizedBox(height:14),const FieldLabel('ŞİFRE'),
+        TextField(controller:pass,obscureText:true,autofillHints:const [AutofillHints.password],decoration:const InputDecoration(hintText:'En az 8 karakter',prefixIcon:Icon(Icons.lock_outline_rounded))),
+        if(create&&accountType=='business_owner')const Padding(padding:EdgeInsets.only(top:12),child:Text('İşletme hesabın yönetici onayından sonra açılır.',style:TextStyle(color:muted,fontSize:11))),
+        if(message.isNotEmpty)Container(margin:const EdgeInsets.only(top:15),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:(message.startsWith('Doğrulama e-postası gönderildi')?Colors.greenAccent:Colors.redAccent).withValues(alpha:.09),borderRadius:BorderRadius.circular(14),border:Border.all(color:(message.startsWith('Doğrulama e-postası gönderildi')?Colors.greenAccent:Colors.redAccent).withValues(alpha:.22))),child:Text(message,style:TextStyle(color:message.startsWith('Doğrulama e-postası gönderildi')?Colors.greenAccent:Colors.redAccent,fontSize:11,height:1.45))),
+        const SizedBox(height:20),
+        SizedBox(height:54,child:ElevatedButton(onPressed:busy?null:submit,child:busy?const SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2,color:ink)):Text(create?'Hesap oluştur':'Giriş yap'))),
+        const SizedBox(height:8),
+        Center(child:TextButton(onPressed:busy?null:()=>setState(()=>{create=!create,message=''}),child:Text(create?'Zaten hesabın var mı? Giriş yap':'Yeni misin? Hesap oluştur'))),
+       ]),
+      ),
+      const SizedBox(height:18),
+      const Row(mainAxisAlignment:MainAxisAlignment.center,children:[
+       Icon(Icons.verified_user_outlined,color:gold,size:14),SizedBox(width:7),
+       Text('GÜVENLİ  •  KOLAY  •  KİŞİSEL',style:TextStyle(color:muted,fontSize:9,letterSpacing:1.5,fontWeight:FontWeight.w800)),
+      ]),
+     ],
+    )),
+   ))),
   ]),
  );
 }
@@ -1219,6 +1256,80 @@ class _BarberPageState extends State<BarberPage> {
     ])),
   ]);
 
+  Widget _profilePage() => FutureBuilder<Map<String, dynamic>?>(
+    future: sb.from('profiles').select('full_name,phone').eq('id', uid).maybeSingle(),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) return const LoadingPage();
+      if (snapshot.hasError) return ErrorPage(message: err(snapshot.error!));
+      final profile = snapshot.data ?? {};
+      final name = (profile['full_name'] ?? 'İşletme yetkilisi').toString();
+      final email = sb.auth.currentUser?.email ?? '';
+      final phone = (profile['phone'] ?? '').toString();
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 30),
+        children: [
+          _heading('HESABIN', 'Profilim', 'Hesap bilgilerini görüntüle ve oturumunu yönet.', Icons.person_outline_rounded),
+          AppPanel(
+            padding: const EdgeInsets.all(19),
+            child: Row(children: [
+              Container(
+                width: 58, height: 58,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: [goldLight, gold]),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  name.trim().isEmpty ? 'B' : name.trim()[0].toUpperCase(),
+                  style: const TextStyle(color: ink, fontSize: 24, fontWeight: FontWeight.w900),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                if (email.isNotEmpty) Text(email, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: muted, fontSize: 11)),
+                if (phone.isNotEmpty) Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text(phone, style: const TextStyle(color: muted, fontSize: 11)),
+                ),
+              ])),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          AppPanel(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const FieldLabel('İŞLETME'),
+              const SizedBox(height: 5),
+              Text(widget.business['name']?.toString() ?? 'İşletmem',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 5),
+              const Text('İşletme hesabı', style: TextStyle(color: muted, fontSize: 11)),
+            ]),
+          ),
+          const SizedBox(height: 18),
+          AppPanel(
+            padding: const EdgeInsets.all(8),
+            child: ListTile(
+              leading: Container(
+                width: 42, height: 42,
+                decoration: BoxDecoration(color: const Color(0x22E57373), borderRadius: BorderRadius.circular(13)),
+                child: const Icon(Icons.logout_rounded, color: Color(0xFFE58F89)),
+              ),
+              title: const Text('Çıkış yap', style: TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: const Text('Berberim hesabından güvenli çıkış yap', style: TextStyle(color: muted, fontSize: 11)),
+              trailing: const Icon(Icons.chevron_right_rounded, color: muted),
+              onTap: () => confirmSignOut(context),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(widget.business['name'] ?? 'İşletme paneli'), actions: [
       IconButton(tooltip: 'Tüm randevular', onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BusinessOverviewPage(business: widget.business))), icon: const Icon(Icons.dashboard_outlined)),
@@ -1226,7 +1337,7 @@ class _BarberPageState extends State<BarberPage> {
       IconButton(tooltip: 'Çıkış yap', onPressed: () => signOutBerberim(), icon: const Icon(Icons.logout_rounded)),
     ]),
     body: IndexedStack(index: tab, children: [
-      _homePage(), _appointmentsPage(), _employeesPage(), _servicesPage(), _settingsPage(),
+      _homePage(), _appointmentsPage(), _employeesPage(), _servicesPage(), _settingsPage(), _profilePage(),
     ]),
     bottomNavigationBar: NavigationBar(
       selectedIndex: tab,
@@ -1916,6 +2027,21 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                       children: rows.map(_membershipCard).toList(),
                     );
                   },
+                ),
+                const SizedBox(height: 16),
+                AppPanel(
+                  padding: const EdgeInsets.all(8),
+                  child: ListTile(
+                    leading: Container(
+                      width: 42, height: 42,
+                      decoration: BoxDecoration(color: const Color(0x22E57373), borderRadius: BorderRadius.circular(13)),
+                      child: const Icon(Icons.logout_rounded, color: Color(0xFFE58F89)),
+                    ),
+                    title: const Text('Çıkış yap', style: TextStyle(fontWeight: FontWeight.w800)),
+                    subtitle: const Text('Berberim hesabından güvenli çıkış yap', style: TextStyle(color: muted, fontSize: 11)),
+                    trailing: const Icon(Icons.chevron_right_rounded, color: muted),
+                    onTap: () => confirmSignOut(context),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Container(
