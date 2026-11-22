@@ -773,6 +773,7 @@ class _BusinessOverviewPageState extends State<BusinessOverviewPage> {
         ...rows.map((a) => BusinessAppointmentCard(
           appointment: a, showEmployee: true,
           onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => setStatus(a['appointment_id'].toString(), 'completed') : null,
+          onNoShow: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true && (DateTime.tryParse(a['starts_at'].toString())?.isBefore(DateTime.now()) ?? false) ? () => setStatus(a['appointment_id'].toString(), 'no_show') : null,
           onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => cancel(a['appointment_id'].toString()) : null,
           onApprove: a['requires_business_approval'] == true ? () => reviewRequest(a['appointment_id'].toString(), 'approve') : null,
           onReject: a['requires_business_approval'] == true ? () => reviewRequest(a['appointment_id'].toString(), 'reject') : null,
@@ -992,6 +993,7 @@ class _BarberPageState extends State<BarberPage> {
       ...rows.map((a) => BusinessAppointmentCard(
         appointment: a,
         onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => _setStatus(a['appointment_id'].toString(), 'completed') : null,
+        onNoShow: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true && (DateTime.tryParse(a['starts_at'].toString())?.isBefore(DateTime.now()) ?? false) ? () => _setStatus(a['appointment_id'].toString(), 'no_show') : null,
         onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => _cancel(a['appointment_id'].toString()) : null,
         onApprove: a['requires_business_approval'] == true ? () => _reviewRequest(a['appointment_id'].toString(), 'approve') : null,
         onReject: a['requires_business_approval'] == true ? () => _reviewRequest(a['appointment_id'].toString(), 'reject') : null,
@@ -1444,10 +1446,11 @@ class _BusinessCustomersPageState extends State<BusinessCustomersPage> {
 }
 
 class BusinessAppointmentCard extends StatelessWidget {
-  const BusinessAppointmentCard({super.key, required this.appointment, this.showEmployee = false, this.onComplete, this.onCancel, this.onApprove, this.onReject});
+  const BusinessAppointmentCard({super.key, required this.appointment, this.showEmployee = false, this.onComplete, this.onNoShow, this.onCancel, this.onApprove, this.onReject});
   final Map<String, dynamic> appointment;
   final bool showEmployee;
   final VoidCallback? onComplete;
+  final VoidCallback? onNoShow;
   final VoidCallback? onCancel;
   final VoidCallback? onApprove;
   final VoidCallback? onReject;
@@ -1504,13 +1507,37 @@ class BusinessAppointmentCard extends StatelessWidget {
             if (onApprove != null && onReject != null) const SizedBox(width: 9),
             if (onReject != null) Expanded(child: OutlinedButton.icon(onPressed: onReject, icon: const Icon(Icons.close_rounded, size: 17), label: const Text('Reddet'))),
           ]),
-        ] else if (active && appointment['requires_business_approval'] != true && (onComplete != null || onCancel != null)) ...[
+        ] else if (active && appointment['requires_business_approval'] != true && (onComplete != null || onCancel != null || onNoShow != null)) ...[
           const SizedBox(height: 12),
           Row(children: [
             if (onComplete != null) Expanded(child: OutlinedButton.icon(onPressed: onComplete, icon: const Icon(Icons.check_circle_outline_rounded, size: 17), label: const Text('Tamamlandı'))),
-            if (onComplete != null && onCancel != null) const SizedBox(width: 9),
+            if (onComplete != null && (onCancel != null || onNoShow != null)) const SizedBox(width: 9),
             if (onCancel != null) Expanded(child: TextButton.icon(onPressed: onCancel, icon: const Icon(Icons.cancel_outlined, size: 17), label: const Text('İptal et'))),
           ]),
+          if (onNoShow != null) ...[
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Müşteri gelmedi mi?'),
+                      content: const Text('Bu randevuyu devamsız olarak işaretlediğinde müşterinin bu işletmedeki devamsızlık sayısı artar. Üçüncü kayıtta otomatik kara listeye alınır.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Vazgeç')),
+                        ElevatedButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Gelmedi olarak işaretle')),
+                      ],
+                    ),
+                  );
+                  if (confirmed == true) onNoShow!();
+                },
+                icon: const Icon(Icons.person_off_rounded, size: 17),
+                label: const Text('Gelmedi olarak işaretle'),
+              ),
+            ),
+          ],
         ],
       ]),
     );
@@ -1582,6 +1609,7 @@ class _EmployeePageState extends State<EmployeePage> {
           ...rows.map((a) => BusinessAppointmentCard(
             appointment: a,
             onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => setStatus(a['appointment_id'].toString(), 'completed') : null,
+            onNoShow: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true && (DateTime.tryParse(a['starts_at'].toString())?.isBefore(DateTime.now()) ?? false) ? () => setStatus(a['appointment_id'].toString(), 'no_show') : null,
             onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') ? () => cancel(a['appointment_id'].toString()) : null,
           )),
         ]),
