@@ -953,11 +953,16 @@ class _BarberPageState extends State<BarberPage> {
               Expanded(child: _metricCard('Aktif randevu', active, Icons.event_available_rounded)),
             ]),
             const SizedBox(height: 10),
-            Row(children: [
-              Expanded(child: _metricCard('Onay bekleyen', pending, Icons.pending_actions_rounded)),
-              const SizedBox(width: 10),
-              Expanded(child: _metricCard('Ekip üyesi', (employeesFuture is Future ? 0 : 0), Icons.groups_rounded)),
-            ]),
+            AppPanel(child: Row(children: [
+              Container(width: 42, height: 42, decoration: BoxDecoration(color: gold.withValues(alpha: .12), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.pending_actions_rounded, color: gold)),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Onay bekleyen randevu', style: TextStyle(color: muted, fontSize: 11)),
+                const SizedBox(height: 3),
+                Text('$pending işlem', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+              ])),
+              const Icon(Icons.arrow_forward_ios_rounded, color: muted, size: 13),
+            ])),
             const SizedBox(height: 22),
             Row(children: [
               const Expanded(child: SectionHeading('Hızlı işlemler')),
