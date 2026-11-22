@@ -1098,8 +1098,28 @@ class _BarberPageState extends State<BarberPage> {
     catch (e) { if (mounted) toast(context, err(e)); }
   }
   Future<void> _cancel(String id) async {
-    try { await sb.rpc('cancel_appointment', params: {'p_appointment_id': id}); await refresh(); }
-    catch (e) { if (mounted) toast(context, err(e)); }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: panel,
+        title: const Text('Randevu iptal edilsin mi?'),
+        content: const Text('Bu randevu iptal edilecek. Müşteriye bildirim gönderilecektir.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Vazgeç')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8B4545), foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Evet, iptal et'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await sb.rpc('cancel_appointment', params: {'p_appointment_id': id});
+      await refresh();
+      if (mounted) toast(context, 'Randevu iptal edildi');
+    } catch (e) { if (mounted) toast(context, err(e)); }
   }
   Future<void> _reviewRequest(String id, String decision) async {
     try {
@@ -1350,7 +1370,17 @@ class BusinessAppointmentCard extends StatelessWidget {
           Row(children: [
             if (onComplete != null) Expanded(child: OutlinedButton.icon(onPressed: onComplete, icon: const Icon(Icons.check_circle_outline_rounded, size: 17), label: const Text('Tamamlandı'))),
             if (onComplete != null && onCancel != null) const SizedBox(width: 9),
-            if (onCancel != null) Expanded(child: TextButton.icon(onPressed: onCancel, icon: const Icon(Icons.cancel_outlined, size: 17), label: const Text('İptal et'))),
+            if (onCancel != null) Expanded(child: OutlinedButton.icon(
+              onPressed: onCancel,
+              icon: const Icon(Icons.event_busy_rounded, size: 17),
+              label: const Text('İptal Et', style: TextStyle(fontWeight: FontWeight.w800)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFE58F89),
+                side: const BorderSide(color: Color(0xFF8B4545)),
+                minimumSize: const Size(0, 44),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            )),
           ]),
         ],
       ]),
