@@ -1125,12 +1125,19 @@ class _BarberPageState extends State<BarberPage> {
       if (rows.isEmpty) return const AppPanel(child: EmptyStateView(icon: Icons.groups_outlined, title: 'Ekibin henüz boş', subtitle: 'İlk çalışanını ekleyerek başlayabilirsin.'));
       return AppPanel(child: Column(children: rows.map((e) {
         final invites = ((e['employee_invites'] as List?) ?? []).whereType<Map>().where((i) => i['claimed_at'] == null).toList();
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const CircleAvatar(backgroundColor: ink, child: Icon(Icons.person_outline, color: gold)),
-          title: Text(e['display_name'] ?? 'Çalışan', style: const TextStyle(fontWeight: FontWeight.w700)),
-          subtitle: Text(invites.isEmpty ? 'Aktif davet kodu yok' : 'Davet kodu: ${invites.map((i) => i['invite_code']).join(' • ')}', style: const TextStyle(color: gold, fontSize: 11)),
-          trailing: StatusTag(e['is_active'] == true ? 'AKTİF' : 'PASİF', color: e['is_active'] == true ? Colors.greenAccent : muted),
+        return Container(
+          margin: const EdgeInsets.only(bottom: 9), padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: const Color(0xFF171717), borderRadius: BorderRadius.circular(16), border: Border.all(color: border)),
+          child: Row(children: [
+            Container(width: 44, height: 44, decoration: BoxDecoration(color: gold.withValues(alpha: .12), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.person_rounded, color: goldLight)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(e['display_name'] ?? 'Çalışan', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+              const SizedBox(height: 4),
+              Text(invites.isEmpty ? 'Aktif davet kodu yok' : 'Davet: ${invites.map((i) => i['invite_code']).join(' • ')}', style: const TextStyle(color: muted, fontSize: 10)),
+            ])),
+            StatusTag(e['is_active'] == true ? 'AKTİF' : 'PASİF', color: e['is_active'] == true ? Colors.greenAccent : muted),
+          ]),
         );
       }).toList()));
     }),
@@ -1156,16 +1163,26 @@ class _BarberPageState extends State<BarberPage> {
       if (snap.hasError) return AppPanel(child: Text(err(snap.error!), style: const TextStyle(color: Colors.redAccent)));
       final rows = snap.data ?? [];
       if (rows.isEmpty) return const AppPanel(child: EmptyStateView(icon: Icons.content_cut_rounded, title: 'Henüz hizmet eklenmedi', subtitle: 'İlk hizmetini yukarıdan ekleyebilirsin.'));
-      return AppPanel(child: Column(children: rows.map((e) => ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const CircleAvatar(backgroundColor: ink, child: Icon(Icons.cut_rounded, color: gold)),
-        title: Text(e['name'] ?? 'Hizmet', style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text('${e['price']} TL • ${e['duration_minutes']} dk', style: const TextStyle(color: muted, fontSize: 11)),
-        trailing: Switch(value: e['is_active'] == true, onChanged: (v) async {
-          try { await sb.from('services').update({'is_active': v}).eq('id', e['id']); await refresh(); }
-          catch (error) { if (mounted) toast(context, err(error)); }
-        }),
-      )).toList()));
+      return Column(children: rows.map((e) => Container(
+        margin: const EdgeInsets.only(bottom: 9), padding: const EdgeInsets.fromLTRB(13, 11, 8, 11),
+        decoration: BoxDecoration(color: const Color(0xFF171717), borderRadius: BorderRadius.circular(16), border: Border.all(color: border)),
+        child: Row(children: [
+          Container(width: 43, height: 43, decoration: BoxDecoration(color: gold.withValues(alpha: .12), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.content_cut_rounded, color: goldLight)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(e['name'] ?? 'Hizmet', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+            const SizedBox(height: 4),
+            Text('${e['price']} TL  •  ${e['duration_minutes']} dakika', style: const TextStyle(color: muted, fontSize: 11)),
+          ])),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(e['is_active'] == true ? 'YAYINDA' : 'GİZLİ', style: TextStyle(color: e['is_active'] == true ? Colors.greenAccent : muted, fontSize: 9, fontWeight: FontWeight.w900)),
+            Switch(value: e['is_active'] == true, onChanged: (v) async {
+              try { await sb.from('services').update({'is_active': v}).eq('id', e['id']); await refresh(); }
+              catch (error) { if (mounted) toast(context, err(error)); }
+            }),
+          ]),
+        ]),
+      )).toList());
     }),
   ]);
 
