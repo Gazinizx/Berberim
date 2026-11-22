@@ -2114,7 +2114,7 @@ class CustomerBookingFlowPage extends StatelessWidget {
           Text((b['name']??'İşletme').toString(),style:const TextStyle(fontSize:15,fontWeight:FontWeight.w900)),
           const SizedBox(height:5),const Text('Hizmetleri ve müsait saatleri görüntüle',style:TextStyle(color:muted,fontSize:10)),
         ])),const Icon(Icons.arrow_forward_rounded,color:goldLight),
-      ]))))),
+      ])))))),
     ]),
   );
 }
@@ -2150,14 +2150,21 @@ class _CustomerDateTimePageState extends State<CustomerDateTimePage> {
   String _date(DateTime d)=>'${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
   Future<List<String>> _slots() async {
     final rows=await sb.rpc('get_available_slots',params:{'p_business_id':widget.business['id'],'p_employee_id':widget.employee['id'],'p_service_id':widget.service['id'],'p_date':_date(day)});
-    return (rows as List).map((r)=>(r['slot_start']??'').toString().substring(0,5)).toList();
+    return (rows as List).map((r) {
+      final slot = (r['slot_start'] ?? '').toString();
+      return slot.length >= 5 ? slot.substring(0, 5) : '';
+    }).where((slot) => slot.isNotEmpty).toList();
   }
   Future<void> _book() async {
+    if (selectedTime.isEmpty || busy) return;
     setState(()=>busy=true);
     try {
-      final p=selectedTime.split(':').map(int.parse).toList();
-      final local=DateTime(day.year,day.month,day.day,p[0],p[1]);
-      final id=await sb.rpc('book_appointment',params:{'p_business_id':widget.business['id'],'p_employee_id':widget.employee['id'],'p_service_id':widget.service['id'],'p_starts_at':local.toUtc().toIso8601String()});
+      // Berberim çalışma saatleri Europe/Istanbul olarak tutulur; cihaz saat
+      // dilimine güvenmeden seçilen Türkiye saatini UTC'ye çevir.
+      final startsAt = DateTime.parse('${_date(day)}T${selectedTime}:00+03:00')
+          .toUtc()
+          .toIso8601String();
+      final id=await sb.rpc('book_appointment',params:{'p_business_id':widget.business['id'],'p_employee_id':widget.employee['id'],'p_service_id':widget.service['id'],'p_starts_at':startsAt});
       final booking=await sb.from('appointments').select('requires_business_approval').eq('id',id.toString()).maybeSingle();
       if(!mounted)return;
       toast(context,booking?['requires_business_approval']==true?'Randevun işletme onayı bekliyor.':'Randevun oluşturuldu.');
