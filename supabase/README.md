@@ -31,6 +31,7 @@ Privileged database implementations live in the non-exposed `private` schema. Th
 - `claim_employee_invite`: links a single-use, unexpired employee invite to the signed-in employee account; the employee then sees their own appointment dashboard.
 - `get_available_slots`: returns free start times using the business-configured appointment interval, respecting opening hours, breaks and existing appointments.
 - `book_appointment`: validates membership, business status, employee, service, opening hours, breaks and time before inserting.
+- `review_appointment_request`: lets the business owner approve or reject a booking request from a customer with at least three verified no-shows at that same business. These requests reserve the selected time while awaiting review.
 - `cancel_appointment`: authorizes cancellation by the customer, assigned employee or business owner.
 - `update_appointment_status`: allows the business owner, assigned employee or admin to mark an appointment completed/no-show.
 - `review_business`: admin-only business approval/rejection/deactivation.
