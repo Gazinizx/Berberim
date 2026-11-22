@@ -46,7 +46,7 @@ Deno.serve(async (request: Request) => {
     const body = await request.json().catch(() => ({}));
     const username = typeof body.username === "string" ? body.username.trim().normalize("NFC").toLocaleLowerCase("tr-TR") : "";
     const password = typeof body.password === "string" ? body.password : "";
-    if (!username.includes("@") || username.length > 100 || /[%_\\s]/u.test(username) || password.length < 1 || password.length > 72) {
+    if (!username.includes("@") || username.length > 100 || /[%_\s]/u.test(username) || password.length < 1 || password.length > 72) {
       return json({ error: "Kullanıcı adı veya şifre hatalı" }, 401);
     }
 
