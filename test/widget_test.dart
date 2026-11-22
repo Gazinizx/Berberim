@@ -11,6 +11,26 @@ void main() {
   });
 
 
+  test('business customer search matches name and phone and filters blacklist', () {
+    final rows = <Map<String, dynamic>>[
+      {'customer_id': '1', 'full_name': 'Ayşe Yılmaz', 'phone': '5551112233', 'is_blacklisted': true},
+      {'customer_id': '2', 'full_name': 'Mehmet Demir', 'phone': '5552223344', 'is_blacklisted': false},
+    ];
+
+    expect(
+      filterBusinessCustomers(rows, query: 'ayşe').map((row) => row['customer_id']).toList(),
+      ['1'],
+    );
+    expect(
+      filterBusinessCustomers(rows, query: '2223').map((row) => row['customer_id']).toList(),
+      ['2'],
+    );
+    expect(
+      filterBusinessCustomers(rows, onlyBlacklisted: true).map((row) => row['customer_id']).toList(),
+      ['1'],
+    );
+  });
+
   test('Berberim theme uses the agreed gold accent', () {
     expect(gold.value, 0xFFD8B36A);
   });
