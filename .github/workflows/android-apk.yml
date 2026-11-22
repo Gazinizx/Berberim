@@ -45,7 +45,7 @@ jobs:
           updated = source
           replacements = 0
           for pattern in patterns:
-              updated, count = re.subn(pattern, r"\\g<1>9.3.2\\g<2>", updated, count=1)
+              updated, count = re.subn(pattern, r"\g<1>9.3.2\g<2>", updated, count=1)
               replacements += count
           if replacements != 1:
               raise SystemExit(
