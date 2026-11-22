@@ -55,6 +55,15 @@ String normalizeBusinessJoinCode(String raw) {
       : value.toUpperCase();
 }
 
+String employeeLoginPart(String value) => value
+    .trim()
+    .toLowerCase()
+    .replaceAll(RegExp(r'\\s+'), '')
+    .replaceAll(RegExp(r'[^a-z0-9çğıöşü._-]'), '');
+
+String employeeLoginUsername(String businessName, String employeeName) =>
+    '${employeeLoginPart(businessName)}@${employeeLoginPart(employeeName)}';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await PushNotifications.initialize();
@@ -583,7 +592,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage>{
  final email=TextEditingController(),pass=TextEditingController(),firstName=TextEditingController(),lastName=TextEditingController(),phone=TextEditingController(); bool create=false,busy=false; String message=''; String accountType='customer';
  @override void initState(){super.initState();create=widget.initialCreate;}
- Future<void> submit() async {setState(()=>busy=true);message='';try{if(create){if(pass.text.length<8)throw Exception('Şifre en az 8 karakter olmalı.');final data=<String,dynamic>{'account_type':accountType};if(accountType=='customer'){if(firstName.text.trim().length<2||lastName.text.trim().length<2)throw Exception('Ad ve soyad zorunludur.');final digits=phone.text.replaceAll(RegExp(r'[^0-9]'),'');if(digits.length<10||digits.length>11)throw Exception('Geçerli telefon numarası gir.');data.addAll({'first_name':firstName.text.trim(),'last_name':lastName.text.trim(),'full_name':firstName.text.trim()+' '+lastName.text.trim(),'phone':phone.text.trim()});}final result=await sb.auth.signUp(email:email.text.trim(),password:pass.text,emailRedirectTo:'berberim://login-callback',data:data);if(result.session==null){message='Doğrulama e-postası gönderildi. E-postandaki bağlantıya dokun; Berberim uygulaması açılacak.';}else if(mounted){Navigator.of(context).pop();}}else{await sb.auth.signInWithPassword(email:email.text.trim(),password:pass.text);if(mounted)Navigator.of(context).pop();}}catch(e){message=err(e);}if(mounted)setState(()=>busy=false);}
+ Future<void> submit() async {setState(()=>busy=true);message='';try{if(create){if(pass.text.length<8)throw Exception('Şifre en az 8 karakter olmalı.');final data=<String,dynamic>{'account_type':accountType};if(accountType=='customer'){if(firstName.text.trim().length<2||lastName.text.trim().length<2)throw Exception('Ad ve soyad zorunludur.');final digits=phone.text.replaceAll(RegExp(r'[^0-9]'),'');if(digits.length<10||digits.length>11)throw Exception('Geçerli telefon numarası gir.');data.addAll({'first_name':firstName.text.trim(),'last_name':lastName.text.trim(),'full_name':firstName.text.trim()+' '+lastName.text.trim(),'phone':phone.text.trim()});}final result=await sb.auth.signUp(email:email.text.trim(),password:pass.text,emailRedirectTo:'berberim://login-callback',data:data);if(result.session==null){message='Doğrulama e-postası gönderildi. E-postandaki bağlantıya dokun; Berberim uygulaması açılacak.';}else if(mounted){Navigator.of(context).pop();}}else{final identifier=email.text.trim();final at=identifier.indexOf('@');final employeeUsername=at>0&&!identifier.substring(at+1).contains('.');if(employeeUsername){final response=await sb.functions.invoke('employee-login',body:{'username':identifier.toLowerCase(),'password':pass.text});if(response.status!=200)throw Exception('Kullanıcı adı veya şifre hatalı');final payload=Map<String,dynamic>.from(response.data as Map);final refreshToken=(payload['refresh_token']??'').toString();if(refreshToken.isEmpty)throw Exception('Çalışan oturumu başlatılamadı');await sb.auth.setSession(refreshToken);}else{await sb.auth.signInWithPassword(email:identifier,password:pass.text);}if(mounted)Navigator.of(context).pop();}}catch(e){message=err(e);}if(mounted)setState(()=>busy=false);}
  @override Widget build(BuildContext c)=>Scaffold(
   body: Stack(children: [
    Positioned(top:-145,right:-115,child:Container(width:360,height:360,decoration:BoxDecoration(shape:BoxShape.circle,color:gold.withValues(alpha:.075)))),
@@ -629,8 +638,8 @@ class _LoginPageState extends State<LoginPage>{
          const SizedBox(height:11),const FieldLabel('TELEFON'),
          TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(hintText:'05xx xxx xx xx',prefixIcon:Icon(Icons.phone_outlined))),
         ],
-        const SizedBox(height:19),const FieldLabel('E-POSTA ADRESİ'),
-        TextField(controller:email,keyboardType:TextInputType.emailAddress,autofillHints:const [AutofillHints.email],decoration:const InputDecoration(hintText:'ornek@email.com',prefixIcon:Icon(Icons.mail_outline_rounded))),
+        const SizedBox(height:19),const FieldLabel('E-POSTA / ÇALIŞAN KULLANICI ADI'),
+        TextField(controller:email,keyboardType:TextInputType.emailAddress,autofillHints:const [AutofillHints.email],decoration:const InputDecoration(hintText:'ornek@email.com veya tasarımhane@ahmet',prefixIcon:Icon(Icons.mail_outline_rounded))),
         const SizedBox(height:14),const FieldLabel('ŞİFRE'),
         TextField(controller:pass,obscureText:true,autofillHints:const [AutofillHints.password],decoration:const InputDecoration(hintText:'En az 8 karakter',prefixIcon:Icon(Icons.lock_outline_rounded))),
         if(create&&accountType=='business_owner')const Padding(padding:EdgeInsets.only(top:12),child:Text('İşletme hesabın yönetici onayından sonra açılır.',style:TextStyle(color:muted,fontSize:11))),
@@ -708,6 +717,7 @@ class PendingPage extends StatelessWidget {const PendingPage({super.key,required
 class AdminPage extends StatefulWidget {const AdminPage({super.key});@override State<AdminPage> createState()=>_AdminPageState();}
 class _AdminPageState extends State<AdminPage>{
  int tab=0;
+ bool get canResetPasswords => (sb.auth.currentUser?.email ?? '').toLowerCase() == 'gazitasdemir46@gmail.com';
  Future<List<Map<String,dynamic>>> load(String table)=>sb.from(table).select().order('created_at',ascending:false);
  Future<void> review(String id,String status)async{try{await sb.rpc('review_business',params:{'p_business_id':id,'p_status':status});if(mounted)setState((){});toast(context,'İşletme durumu güncellendi');}catch(e){toast(context,err(e));}}
  Future<void> block(String id,bool value)async{try{await sb.rpc('admin_set_user_blocked',params:{'p_user_id':id,'p_blocked':value});if(mounted)setState((){});}catch(e){toast(context,err(e));}}
@@ -786,18 +796,75 @@ class _AdminPageState extends State<AdminPage>{
   ]);
  });
  @override Widget build(BuildContext c){
-  final pages=[dashboard(),businesses(),users(),appointments()];
+  final pages=<Widget>[dashboard(),businesses(),users(),appointments(),if(canResetPasswords) const AdminPasswordResetPage()];
+  final destinations=<NavigationDestination>[
+    const NavigationDestination(icon:Icon(Icons.dashboard_outlined),selectedIcon:Icon(Icons.dashboard_rounded),label:'Genel'),
+    const NavigationDestination(icon:Icon(Icons.storefront_outlined),selectedIcon:Icon(Icons.storefront_rounded),label:'İşletmeler'),
+    const NavigationDestination(icon:Icon(Icons.people_outline),selectedIcon:Icon(Icons.people_rounded),label:'Kullanıcılar'),
+    const NavigationDestination(icon:Icon(Icons.calendar_month_outlined),selectedIcon:Icon(Icons.calendar_month_rounded),label:'Randevular'),
+    if(canResetPasswords) const NavigationDestination(icon:Icon(Icons.lock_reset_rounded),selectedIcon:Icon(Icons.lock_reset_rounded),label:'Şifre sıfırla'),
+  ];
+  final safeTab=tab<pages.length?tab:0;
   return Scaffold(
    appBar:AppBar(title:const Text('Yönetim merkezi'),actions:[IconButton(tooltip:'Yenile',onPressed:()=>setState((){}),icon:const Icon(Icons.refresh_rounded)),IconButton(tooltip:'Çıkış yap',onPressed:()=>signOutBerberim(),icon:const Icon(Icons.logout_rounded))]),
-   body:pages[tab],
-   bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const [
-    NavigationDestination(icon:Icon(Icons.dashboard_outlined),selectedIcon:Icon(Icons.dashboard_rounded),label:'Genel'),
-    NavigationDestination(icon:Icon(Icons.storefront_outlined),selectedIcon:Icon(Icons.storefront_rounded),label:'İşletmeler'),
-    NavigationDestination(icon:Icon(Icons.people_outline),selectedIcon:Icon(Icons.people_rounded),label:'Kullanıcılar'),
-    NavigationDestination(icon:Icon(Icons.calendar_month_outlined),selectedIcon:Icon(Icons.calendar_month_rounded),label:'Randevular'),
-   ]),
+   body:pages[safeTab],
+   bottomNavigationBar:NavigationBar(selectedIndex:safeTab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:destinations),
   );
  }
+}
+
+class AdminPasswordResetPage extends StatefulWidget {
+  const AdminPasswordResetPage({super.key});
+  @override State<AdminPasswordResetPage> createState() => _AdminPasswordResetPageState();
+}
+class _AdminPasswordResetPageState extends State<AdminPasswordResetPage> {
+  final email = TextEditingController();
+  final phone = TextEditingController();
+  final password = TextEditingController();
+  final confirmPassword = TextEditingController();
+  bool busy = false;
+  @override void dispose() { email.dispose(); phone.dispose(); password.dispose(); confirmPassword.dispose(); super.dispose(); }
+  Future<void> resetPassword() async {
+    final targetEmail=email.text.trim().toLowerCase();
+    final targetPhone=phone.text.trim();
+    if(!targetEmail.contains('@') || targetPhone.isEmpty) { toast(context,'E-posta ve telefon numarasını gir.'); return; }
+    if(password.text.length<8) { toast(context,'Yeni şifre en az 8 karakter olmalı.'); return; }
+    if(password.text!=confirmPassword.text) { toast(context,'Şifreler birbiriyle eşleşmiyor.'); return; }
+    setState(()=>busy=true);
+    try {
+      final response=await sb.functions.invoke('account-admin',body:{
+        'action':'reset_password','email':targetEmail,'phone':targetPhone,'password':password.text,
+      });
+      if(response.status!=200) {
+        final payload=response.data;
+        throw Exception(payload is Map?(payload['error']??'Şifre değiştirilemedi'):'Şifre değiştirilemedi');
+      }
+      password.clear(); confirmPassword.clear();
+      if(mounted) toast(context,'Hesabın şifresi başarıyla değiştirildi.');
+    } catch(e) { if(mounted) toast(context,err(e)); }
+    finally { if(mounted) setState(()=>busy=false); }
+  }
+  @override Widget build(BuildContext context)=>ListView(
+    padding:const EdgeInsets.fromLTRB(18,14,18,28),
+    children:[
+      const ScreenHeading(eyebrow:'ANA YÖNETİCİ',title:'Şifre sıfırlama',subtitle:'Yalnızca kayıtlı e-posta ve telefon bilgileri eşleşen hesabın şifresini değiştir.',icon:Icons.lock_reset_rounded),
+      AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+        const FieldLabel('HESAP E-POSTASI'),
+        TextField(controller:email,keyboardType:TextInputType.emailAddress,autocorrect:false,decoration:const InputDecoration(hintText:'ornek@email.com',prefixIcon:Icon(Icons.email_outlined))),
+        const SizedBox(height:12),
+        const FieldLabel('HESABA KAYITLI TELEFON'),
+        TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(hintText:'05xx xxx xx xx',prefixIcon:Icon(Icons.phone_outlined))),
+        const SizedBox(height:12),
+        const FieldLabel('YENİ ŞİFRE'),
+        TextField(controller:password,obscureText:true,decoration:const InputDecoration(hintText:'En az 8 karakter',prefixIcon:Icon(Icons.lock_outline_rounded))),
+        const SizedBox(height:12),
+        const FieldLabel('YENİ ŞİFRE TEKRAR'),
+        TextField(controller:confirmPassword,obscureText:true,decoration:const InputDecoration(hintText:'Yeni şifreyi tekrar gir',prefixIcon:Icon(Icons.lock_reset_rounded))),
+        const SizedBox(height:18),
+        SizedBox(height:52,child:ElevatedButton.icon(onPressed:busy?null:resetPassword,icon:busy?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2,color:ink)):const Icon(Icons.check_rounded),label:Text(busy?'Güncelleniyor…':'Şifreyi değiştir'))),
+      ])),
+    ],
+  );
 }
 
 class BusinessOverviewPage extends StatefulWidget {
@@ -866,6 +933,7 @@ class _BarberPageState extends State<BarberPage> {
   final price = TextEditingController();
   final duration = TextEditingController(text: '30');
   final employee = TextEditingController();
+  final employeePassword = TextEditingController();
   final open = TextEditingController(text: '09:00');
   final close = TextEditingController(text: '20:00');
   final breakStart = TextEditingController(text: '13:00');
@@ -886,7 +954,7 @@ class _BarberPageState extends State<BarberPage> {
   }
 
   @override void dispose() {
-    service.dispose(); price.dispose(); duration.dispose(); employee.dispose();
+    service.dispose(); price.dispose(); duration.dispose(); employee.dispose(); employeePassword.dispose();
     open.dispose(); close.dispose(); breakStart.dispose(); breakEnd.dispose();
     super.dispose();
   }
@@ -966,22 +1034,40 @@ class _BarberPageState extends State<BarberPage> {
   }
 
   Future<void> addEmployee() async {
+    final name = employee.text.trim();
+    final password = employeePassword.text;
+    if (name.isEmpty) { toast(context, 'Çalışan adı boş olamaz'); return; }
+    if (password.length < 8) { toast(context, 'Çalışan şifresi en az 8 karakter olmalı'); return; }
+    final username = employeeLoginUsername(widget.business['name'].toString(), name);
+    if (username.startsWith('@') || username.endsWith('@')) {
+      toast(context, 'İşletme veya çalışan adı kullanıcı adı oluşturmak için uygun değil');
+      return;
+    }
+    setState(() => busy = true);
     try {
-      final name = employee.text.trim();
-      if (name.isEmpty) throw Exception('Çalışan adı boş olamaz');
-      final code = await sb.rpc('create_employee_invite', params: {
-        'p_business_id': widget.business['id'], 'p_display_name': name,
+      final response = await sb.functions.invoke('account-admin', body: {
+        'action': 'create_employee',
+        'business_id': widget.business['id'],
+        'display_name': name,
+        'password': password,
       });
+      if (response.status != 200) {
+        final payload = response.data;
+        throw Exception(payload is Map ? (payload['error'] ?? 'Çalışan hesabı oluşturulamadı') : 'Çalışan hesabı oluşturulamadı');
+      }
+      final payload = Map<String, dynamic>.from(response.data as Map);
       employee.clear();
+      employeePassword.clear();
       await refresh();
       if (mounted) {
         await showDialog<void>(context: context, builder: (c) => AlertDialog(
-          title: const Text('Çalışan daveti hazır'),
-          content: SelectableText('Çalışan: $name\nDavet kodu: $code'),
+          title: const Text('Çalışan hesabı oluşturuldu'),
+          content: SelectableText('Çalışan: $name\\nKullanıcı adı: ${payload['login_username'] ?? username}\\nŞifre: $password\\n\\nBu bilgileri çalışanla güvenli şekilde paylaş.'),
           actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Tamam'))],
         ));
       }
     } catch (e) { if (mounted) toast(context, err(e)); }
+    finally { if (mounted) setState(() => busy = false); }
   }
 
   Future<void> saveHours() async {
@@ -1221,12 +1307,18 @@ class _BarberPageState extends State<BarberPage> {
   }
 
   Widget _employeesPage() => ListView(padding: const EdgeInsets.fromLTRB(18, 16, 18, 28), children: [
-    _heading('EKİP YÖNETİMİ', 'Çalışanlar', 'Ekibini oluştur ve davet kodlarını güvenle paylaş.', Icons.groups_rounded),
+    _heading('EKİP YÖNETİMİ', 'Çalışanlar', 'Çalışan hesabını ve giriş şifresini buradan oluştur.', Icons.groups_rounded),
     AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       const FieldLabel('ÇALIŞAN ADI'),
-      TextField(controller: employee, decoration: const InputDecoration(hintText: 'Çalışan adı', prefixIcon: Icon(Icons.person_add_alt_1_rounded))),
+      TextField(controller: employee, onChanged: (_) => setState(() {}), decoration: const InputDecoration(hintText: 'Örn. Ahmet', prefixIcon: Icon(Icons.person_add_alt_1_rounded))),
       const SizedBox(height: 12),
-      SizedBox(height: 48, child: ElevatedButton.icon(onPressed: busy ? null : addEmployee, icon: const Icon(Icons.add_rounded), label: const Text('Çalışan ekle'))),
+      const FieldLabel('ÇALIŞAN KULLANICI ADI'),
+      Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: panelRaised, borderRadius: BorderRadius.circular(14), border: Border.all(color: border)), child: Text(employeeLoginUsername(widget.business['name'].toString(), employee.text).isEmpty ? 'İşletme@çalışan' : employeeLoginUsername(widget.business['name'].toString(), employee.text), style: const TextStyle(color: goldLight, fontWeight: FontWeight.w800))),
+      const SizedBox(height: 12),
+      const FieldLabel('GİRİŞ ŞİFRESİ'),
+      TextField(controller: employeePassword, obscureText: true, decoration: const InputDecoration(hintText: 'En az 8 karakter', prefixIcon: Icon(Icons.lock_outline_rounded))),
+      const SizedBox(height: 12),
+      SizedBox(height: 48, child: ElevatedButton.icon(onPressed: busy ? null : addEmployee, icon: const Icon(Icons.add_rounded), label: const Text('Çalışan hesabı oluştur'))),
     ])),
     const SizedBox(height: 14),
     FutureBuilder<List<Map<String, dynamic>>>(future: employeesFuture, builder: (c, snap) {
@@ -1245,7 +1337,7 @@ class _BarberPageState extends State<BarberPage> {
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(e['display_name'] ?? 'Çalışan', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
               const SizedBox(height: 4),
-              Text(invites.isEmpty ? 'Aktif davet kodu yok' : 'Davet: ${invites.map((i) => i['invite_code']).join(' • ')}', style: const TextStyle(color: muted, fontSize: 10)),
+              Text((e['login_username'] ?? '').toString().isNotEmpty ? 'Giriş: ${e['login_username']}' : invites.isEmpty ? 'Eski davet kodu bulunmuyor' : 'Davet: ${invites.map((i) => i['invite_code']).join(' • ')}', style: const TextStyle(color: muted, fontSize: 10)),
             ])),
             StatusTag(e['is_active'] == true ? 'AKTİF' : 'PASİF', color: e['is_active'] == true ? Colors.greenAccent : muted),
           ]),
