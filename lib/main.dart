@@ -2512,43 +2512,192 @@ class _CustomerPageState extends State<CustomerPage> {
  );
 }
 
-class CustomerBookingFlowPage extends StatelessWidget {
-  final List<Map<String,dynamic>> businesses;
-  const CustomerBookingFlowPage({super.key,required this.businesses});
-  Future<Map<String,dynamic>?> _pick(BuildContext context,{required String title,required String subtitle,required List<Map<String,dynamic>> rows,required String nameKey,required IconData icon,required int step,String? detailKey}) =>
-    Navigator.of(context).push<Map<String,dynamic>>(MaterialPageRoute(builder:(_)=>CustomerRecordPickerPage(title:title,subtitle:subtitle,rows:rows,nameKey:nameKey,icon:icon,step:step,detailKey:detailKey)));
-  Future<void> _start(BuildContext context,Map<String,dynamic> b) async {
-    try {
-      final er=await sb.from('employees').select().eq('business_id',b['id']).eq('is_active',true);
-      final employees=(er as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList();
-      if(!context.mounted)return;
-      if(employees.isEmpty){toast(context,'Bu işletmede aktif berber bulunamadı');return;}
-      final employee=await _pick(context,title:'Berberini seç',subtitle:'Hizmet alacağın uzmanı belirle.',rows:employees,nameKey:'display_name',icon:Icons.person_outline_rounded,step:2);
-      if(employee==null||!context.mounted)return;
-      final sr=await sb.from('services').select().eq('business_id',b['id']).eq('is_active',true);
-      final services=(sr as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList();
-      if(!context.mounted)return;
-      if(services.isEmpty){toast(context,'Bu işletmede aktif hizmet bulunamadı');return;}
-      final service=await _pick(context,title:'Hizmetini seç',subtitle:'İhtiyacına uygun hizmeti seç.',rows:services,nameKey:'name',icon:Icons.content_cut_rounded,step:3,detailKey:'price');
-      if(service==null||!context.mounted)return;
-      await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CustomerDateTimePage(business:b,employee:employee,service:service)));
-    } catch(e){if(context.mounted)toast(context,err(e));}
-  }
-  @override Widget build(BuildContext context)=>Scaffold(
-    appBar:AppBar(title:const Text('1 / 4 · İşletme')),
-    body:ListView(padding:const EdgeInsets.fromLTRB(18,12,18,28),children:[
-      const ScreenHeading(eyebrow:'RANDEVU YOLCULUĞUN',title:'İşletmeni seç',subtitle:'Sana en iyi hizmeti verecek işletmeyle başla.',icon:Icons.storefront_rounded),
-      ...businesses.map((b)=>Container(margin:const EdgeInsets.only(bottom:12),decoration:BoxDecoration(color:panel,borderRadius:BorderRadius.circular(22),border:Border.all(color:border)),child:Material(color:Colors.transparent,child:InkWell(borderRadius:BorderRadius.circular(22),onTap:()=>_start(context,b),child:Padding(padding:const EdgeInsets.all(17),child:Row(children:[
-        Container(width:52,height:52,decoration:BoxDecoration(gradient:const LinearGradient(colors:[goldLight,gold]),borderRadius:BorderRadius.circular(16)),child:const Icon(Icons.storefront_rounded,color:ink,size:24)),
-        const SizedBox(width:14),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Text((b['name']??'İşletme').toString(),style:const TextStyle(fontSize:15,fontWeight:FontWeight.w900)),
-          const SizedBox(height:5),const Text('Hizmetleri ve müsait saatleri görüntüle',style:TextStyle(color:muted,fontSize:10)),
-        ])),const Icon(Icons.arrow_forward_rounded,color:goldLight),
-      ])))))),
-    ]),
-  );
+class CustomerBookingFlowPage extends StatefulWidget {
+  final List<Map<String, dynamic>> businesses;
+  const CustomerBookingFlowPage({super.key, required this.businesses});
+
+  @override
+  State<CustomerBookingFlowPage> createState() => _CustomerBookingFlowPageState();
 }
 
+class _CustomerBookingFlowPageState extends State<CustomerBookingFlowPage> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.businesses.length == 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _start(widget.businesses.first);
+      });
+    }
+  }
+
+  Future<Map<String, dynamic>?> _pick({
+    required String title,
+    required String subtitle,
+    required List<Map<String, dynamic>> rows,
+    required String nameKey,
+    required IconData icon,
+    required int step,
+    String? detailKey,
+  }) =>
+      Navigator.of(context).push<Map<String, dynamic>>(
+        MaterialPageRoute(
+          builder: (_) => CustomerRecordPickerPage(
+            title: title,
+            subtitle: subtitle,
+            rows: rows,
+            nameKey: nameKey,
+            icon: icon,
+            step: step,
+            detailKey: detailKey,
+          ),
+        ),
+      );
+
+  Future<void> _start(Map<String, dynamic> business) async {
+    try {
+      final employeeRows = await sb
+          .from('employees')
+          .select()
+          .eq('business_id', business['id'])
+          .eq('is_active', true);
+      final employees = (employeeRows as List)
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
+      if (!mounted) return;
+      if (employees.isEmpty) {
+        toast(context, 'Bu işletmede aktif berber bulunamadı');
+        if (widget.businesses.length == 1) Navigator.of(context).pop();
+        return;
+      }
+
+      final employee = await _pick(
+        title: 'Berberini seç',
+        subtitle: 'Hizmet alacağın uzmanı belirle.',
+        rows: employees,
+        nameKey: 'display_name',
+        icon: Icons.person_outline_rounded,
+        step: widget.businesses.length == 1 ? 1 : 2,
+      );
+      if (employee == null || !mounted) return;
+
+      final serviceRows = await sb
+          .from('services')
+          .select()
+          .eq('business_id', business['id'])
+          .eq('is_active', true);
+      final services = (serviceRows as List)
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
+      if (!mounted) return;
+      if (services.isEmpty) {
+        toast(context, 'Bu işletmede aktif hizmet bulunamadı');
+        if (widget.businesses.length == 1) Navigator.of(context).pop();
+        return;
+      }
+
+      final service = await _pick(
+        title: 'Hizmetini seç',
+        subtitle: 'İhtiyacına uygun hizmeti seç.',
+        rows: services,
+        nameKey: 'name',
+        icon: Icons.content_cut_rounded,
+        step: widget.businesses.length == 1 ? 2 : 3,
+        detailKey: 'price',
+      );
+      if (service == null || !mounted) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CustomerDateTimePage(
+            business: business,
+            employee: employee,
+            service: service,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) toast(context, err(error));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.businesses.length == 1) {
+      return const Scaffold(
+        appBar: AppBar(title: Text('Randevu oluştur')),
+        body: LoadingPage(),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('1 / 4 · İşletme')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+        children: [
+          const ScreenHeading(
+            eyebrow: 'RANDEVU YOLCULUĞUN',
+            title: 'İşletmeni seç',
+            subtitle: 'Randevu almak istediğin kayıtlı işletmeyi seç.',
+            icon: Icons.storefront_rounded,
+          ),
+          ...widget.businesses.map((business) => Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: panel,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: border),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(22),
+                onTap: () => _start(business),
+                child: Padding(
+                  padding: const EdgeInsets.all(17),
+                  child: Row(children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(colors: [goldLight, gold]),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.storefront_rounded,
+                        color: ink,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          (business['name'] ?? 'İşletme').toString(),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        const Text(
+                          'Hizmetleri ve müsait saatleri görüntüle',
+                          style: TextStyle(color: muted, fontSize: 10),
+                        ),
+                      ],
+                    )),
+                    const Icon(Icons.arrow_forward_rounded, color: goldLight),
+                  ]),
+                ),
+              ),
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+}
 class CustomerRecordPickerPage extends StatelessWidget {
   final String title,subtitle,nameKey;final String? detailKey;final List<Map<String,dynamic>> rows;final IconData icon;final int step;
   const CustomerRecordPickerPage({super.key,required this.title,required this.subtitle,required this.rows,required this.nameKey,required this.icon,required this.step,this.detailKey});
