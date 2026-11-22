@@ -236,7 +236,7 @@ void toast(BuildContext context, String message) {
 }
 
 String appointmentStatusLabel(Object? status) => switch (status) {
-  'pending' => 'Randevu verildi',
+  'pending' => 'Randevu oluşturuldu',
   'confirmed' => 'Onaylandı',
   'completed' => 'Tamamlandı',
   'cancelled' => 'İptal edildi',
@@ -582,7 +582,7 @@ class _ProfilePageState extends State<ProfilePage>{
     const SizedBox(height:22),
     const SectionHeading('İşletme bilgileri'),
     const FieldLabel('İŞLETME ADI'),
-    TextField(controller:shop,decoration:const InputDecoration(hintText:'Berber dükkanının adı',prefixIcon:Icon(Icons.storefront_outlined))),
+    TextField(controller:shop,decoration:const InputDecoration(hintText:'Berber dükkânının adı',prefixIcon:Icon(Icons.storefront_outlined))),
     const SizedBox(height:16),
     const FieldLabel('ADRES (İSTEĞE BAĞLI)'),
     TextField(controller:address,maxLines:2,decoration:const InputDecoration(hintText:'Mahalle, cadde, sokak…',prefixIcon:Icon(Icons.location_on_outlined))),
@@ -917,7 +917,7 @@ class _BarberPageState extends State<BarberPage> {
         ),
       ),
       const SizedBox(height: 10),
-      const Text('Müşterilerin QR kodunu okutabilir veya yukarıdaki işletme kodunu uygulamaya elle girebilir.', textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 12, height: 1.4)),
+      const Text('Müşterilerin QR kodunu okutarak işletmene katılabilir. Dilersen işletme kodunu da paylaşabilirsin.', textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 12, height: 1.4)),
     ])),
     const SizedBox(height: 14),
     AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1251,7 +1251,7 @@ class _EmployeePageState extends State<EmployeePage> {
     try {
       await sb.rpc('update_appointment_status', params: {'p_appointment_id': id, 'p_status': status});
       await refresh();
-      if (mounted) toast(context, status == 'completed' ? 'Randevu tamamlandı' : 'Randevu gelmedi olarak işaretlendi');
+      if (mounted) toast(context, status == 'completed' ? 'Randevu tamamlandı' : 'Katılmadı olarak işaretlendi');
     } catch (e) { if (mounted) toast(context, err(e)); }
   }
 
@@ -2366,7 +2366,7 @@ class _CustomerPageState extends State<CustomerPage> {
  );
 
  Widget _businessCard(Map<String,dynamic> business,int index) {
-  final name=(business['name']??'Berber dükkanı').toString();
+  final name=(business['name']??'Berber dükkânı').toString();
   return Padding(padding:const EdgeInsets.only(bottom:12),child:Material(
    color:Colors.transparent,
    child:InkWell(borderRadius:BorderRadius.circular(22),onTap:()=>_openBusiness(business),child:Ink(
