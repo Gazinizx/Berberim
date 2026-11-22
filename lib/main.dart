@@ -368,6 +368,19 @@ class BrandMark extends StatelessWidget {
   ]);
 }
 
+class ProfileAvatar extends StatelessWidget {
+ const ProfileAvatar({super.key,required this.url,this.size=56,this.icon=Icons.person_rounded});
+ final String url; final double size; final IconData icon;
+ @override Widget build(BuildContext context)=>Container(
+  width:size,height:size,padding:const EdgeInsets.all(2),
+  decoration:BoxDecoration(shape:BoxShape.circle,gradient:const LinearGradient(colors:[goldLight,gold]),boxShadow:[BoxShadow(color:gold.withValues(alpha:.13),blurRadius:14,offset:const Offset(0,5))]),
+  child:ClipOval(child:Container(color:panelRaised,child:url.trim().isEmpty
+   ?Icon(icon,color:goldLight,size:size*.48)
+   :Image.network(url,fit:BoxFit.cover,width:size,height:size,
+    errorBuilder:(_,__,___)=>Icon(icon,color:goldLight,size:size*.48)))),
+ );
+}
+
 class StatusTag extends StatelessWidget {
   const StatusTag(this.label, {super.key, this.color = gold});
   final String label;
@@ -453,7 +466,7 @@ class _AuthGateState extends State<AuthGate> {
         _loadedUid = null;
         _profileFuture = null;
         _businessesFuture = null;
-        return const LoginPage();
+        return const WelcomePage();
       }
       if (_loadedUid != user.id) {
         _loadedUid = user.id;
@@ -537,9 +550,39 @@ class ErrorPage extends StatelessWidget {
   )));
 }
 
-class LoginPage extends StatefulWidget { const LoginPage({super.key}); @override State<LoginPage> createState()=>_LoginPageState(); }
+class WelcomePage extends StatelessWidget {
+ const WelcomePage({super.key});
+ void _open(BuildContext context,{bool create=false}) => Navigator.of(context).push(MaterialPageRoute(builder:(_)=>LoginPage(initialCreate:create)));
+ @override Widget build(BuildContext context) => Scaffold(
+  backgroundColor:ink,
+  body:Stack(fit:StackFit.expand,children:[
+   Image.network('https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1400&q=90',fit:BoxFit.cover,
+    errorBuilder:(_,__,___)=>Container(decoration:const BoxDecoration(gradient:LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,colors:[Color(0xFF28231C),ink])))),
+   const DecoratedBox(decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,colors:[Color(0x55000000),Color(0xCC08090B),Color(0xF508090B)],stops:[0,.42,1]))),
+   SafeArea(child:Padding(padding:const EdgeInsets.fromLTRB(25,34,25,26),child:Column(children:[
+    const Spacer(flex:3),
+    Container(width:104,height:104,decoration:BoxDecoration(shape:BoxShape.circle,color:const Color(0xCC11100D),border:Border.all(color:gold.withValues(alpha:.7),width:1.4),boxShadow:const [BoxShadow(color:goldShadow,blurRadius:34,spreadRadius:2)]),child:const Icon(Icons.content_cut_rounded,color:goldLight,size:56)),
+    const SizedBox(height:23),
+    const Text('BERBERİM',textAlign:TextAlign.center,style:TextStyle(color:goldLight,fontSize:34,fontWeight:FontWeight.w900,letterSpacing:4.2)),
+    const SizedBox(height:9),
+    const Text('Randevunu Kolayca Al',style:TextStyle(color:Color(0xFFE5D6BD),fontSize:15,fontWeight:FontWeight.w600,letterSpacing:.25)),
+    const Spacer(flex:4),
+    SizedBox(width:double.infinity,height:58,child:ElevatedButton.icon(onPressed:()=>_open(context),icon:const Icon(Icons.arrow_forward_rounded),label:const Text('Başla'))),
+    const SizedBox(height:14),
+    TextButton(onPressed:()=>_open(context,create:true),child:const Text('Hesabın yok mu?  Kayıt ol',style:TextStyle(color:goldLight,fontWeight:FontWeight.w700))),
+   ]))),
+  ]),
+ );
+}
+
+class LoginPage extends StatefulWidget {
+ const LoginPage({super.key,this.initialCreate=false});
+ final bool initialCreate;
+ @override State<LoginPage> createState()=>_LoginPageState();
+}
 class _LoginPageState extends State<LoginPage>{
  final email=TextEditingController(),pass=TextEditingController(),firstName=TextEditingController(),lastName=TextEditingController(),phone=TextEditingController(); bool create=false,busy=false; String message=''; String accountType='customer';
+ @override void initState(){super.initState();create=widget.initialCreate;}
  Future<void> submit() async {setState(()=>busy=true);message='';try{if(create){if(pass.text.length<8)throw Exception('Şifre en az 8 karakter olmalı.');final data=<String,dynamic>{'account_type':accountType};if(accountType=='customer'){if(firstName.text.trim().length<2||lastName.text.trim().length<2)throw Exception('Ad ve soyad zorunludur.');final digits=phone.text.replaceAll(RegExp(r'[^0-9]'),'');if(digits.length<10||digits.length>11)throw Exception('Geçerli telefon numarası gir.');data.addAll({'first_name':firstName.text.trim(),'last_name':lastName.text.trim(),'full_name':firstName.text.trim()+' '+lastName.text.trim(),'phone':phone.text.trim()});}final result=await sb.auth.signUp(email:email.text.trim(),password:pass.text,emailRedirectTo:'berberim://login-callback',data:data);if(result.session==null)message='Doğrulama e-postası gönderildi. E-postandaki bağlantıya dokun; Berberim uygulaması açılacak.';}else{await sb.auth.signInWithPassword(email:email.text.trim(),password:pass.text);}}catch(e){message=err(e);}if(mounted)setState(()=>busy=false);}
  @override Widget build(BuildContext c)=>Scaffold(
   body: Stack(children: [
@@ -717,7 +760,7 @@ class _AdminPageState extends State<AdminPage>{
    heading('Kullanıcılar','Hesap türlerini görüntüle ve erişim durumlarını yönet.'),
    if((s.data??[]).isEmpty)const EmptyStateView(icon:Icons.people_outline,title:'Kullanıcı bulunamadı',subtitle:'Kayıt olan kullanıcılar burada listelenecek.'),
    ...(s.data??[]).map((p)=>AppPanel(margin:const EdgeInsets.only(bottom:10),padding:const EdgeInsets.symmetric(horizontal:15,vertical:8),child:Row(children:[
-    CircleAvatar(backgroundColor:gold.withValues(alpha:.14),child:Icon(p['account_type']=='business_owner'?Icons.storefront_rounded:Icons.person_rounded,color:gold)),
+    ProfileAvatar(url:(p['avatar_url']??'').toString(),size:44,icon:p['account_type']=='business_owner'?Icons.storefront_rounded:Icons.person_rounded),
     const SizedBox(width:13),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      Text(p['full_name']??'İsimsiz kullanıcı',style:const TextStyle(fontWeight:FontWeight.w800)),
      const SizedBox(height:3),Text(p['email']??'E-posta yok',style:const TextStyle(color:muted,fontSize:11)),
@@ -1257,7 +1300,7 @@ class _BarberPageState extends State<BarberPage> {
   ]);
 
   Widget _profilePage() => FutureBuilder<Map<String, dynamic>?>(
-    future: sb.from('profiles').select('full_name,phone').eq('id', uid).maybeSingle(),
+    future: sb.from('profiles').select('full_name,phone,avatar_url').eq('id', uid).maybeSingle(),
     builder: (context, snapshot) {
       if (snapshot.connectionState != ConnectionState.done) return const LoadingPage();
       if (snapshot.hasError) return ErrorPage(message: err(snapshot.error!));
@@ -1265,6 +1308,7 @@ class _BarberPageState extends State<BarberPage> {
       final name = (profile['full_name'] ?? 'İşletme yetkilisi').toString();
       final email = sb.auth.currentUser?.email ?? '';
       final phone = (profile['phone'] ?? '').toString();
+      final avatarUrl = (profile['avatar_url'] ?? '').toString();
       return ListView(
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 30),
         children: [
@@ -1272,18 +1316,7 @@ class _BarberPageState extends State<BarberPage> {
           AppPanel(
             padding: const EdgeInsets.all(19),
             child: Row(children: [
-              Container(
-                width: 58, height: 58,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: [goldLight, gold]),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  name.trim().isEmpty ? 'B' : name.trim()[0].toUpperCase(),
-                  style: const TextStyle(color: ink, fontSize: 24, fontWeight: FontWeight.w900),
-                ),
-              ),
+              ProfileAvatar(url: avatarUrl, size: 62, icon: Icons.storefront_rounded),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -1422,7 +1455,7 @@ class BusinessAppointmentCard extends StatelessWidget {
             gradient: LinearGradient(colors: [gold.withValues(alpha: .22), gold.withValues(alpha: .07)]),
             borderRadius: BorderRadius.circular(15)),
             clipBehavior:Clip.antiAlias,
-            child:avatarUrl.isNotEmpty?Image.network(avatarUrl,fit:BoxFit.cover,errorBuilder:(_,__,___)=>const Icon(Icons.person_rounded,color:gold,size:24)):const Icon(Icons.person_rounded,color:gold,size:24)),
+            child:ProfileAvatar(url:avatarUrl,size:48)),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text((appointment['customer_name'] ?? 'Müşteri').toString(), maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -1706,7 +1739,7 @@ class _CustomerProfileEditorState extends State<CustomerProfileEditor>{
  void fill(Map<String,dynamic> p){if(loaded)return;final n=(p['full_name']??'').toString().split(' ');first.text=(p['first_name']??(n.isEmpty?'':n.first)).toString();last.text=(p['last_name']??(n.length>1?n.skip(1).join(' '):'')).toString();phone.text=(p['phone']??'').toString();loaded=true;}
  Future<void> save()async{final f=first.text.trim(),l=last.text.trim(),p=phone.text.trim();var d=p.replaceAll(RegExp(r'[^0-9]'),'');if(d.startsWith('90')&&d.length==12)d=d.substring(2);if(d.startsWith('0')&&d.length==11)d=d.substring(1);if(f.length<2||l.length<2||d.length!=10||!d.startsWith('5')){toast(context,'Ad, soyad ve 05xx ile başlayan geçerli bir telefon numarası gir.');return;}setState(()=>busy=true);try{await sb.from('profiles').update({'first_name':f,'last_name':l,'full_name':f+' '+l,'phone':p}).eq('id',uid);if(!mounted)return;setState(()=>data=load());toast(context,'Profil bilgilerin kaydedildi');}catch(e){if(mounted)toast(context,err(e));}finally{if(mounted)setState(()=>busy=false);}}
  Future<void> photo()async{try{final x=await ImagePicker().pickImage(source:ImageSource.gallery,imageQuality:82,maxWidth:1400);if(x==null)return;setState(()=>uploading=true);final ext=x.name.split('.').last.toLowerCase(),e=['jpg','jpeg','png','webp'].contains(ext)?ext:'jpg',mime=e=='png'?'image/png':e=='webp'?'image/webp':'image/jpeg',path=uid+'/avatar.'+e;await sb.storage.from('profile-photos').uploadBinary(path,await x.readAsBytes(),fileOptions:FileOptions(upsert:true,contentType:mime));final url=sb.storage.from('profile-photos').getPublicUrl(path);await sb.from('profiles').update({'avatar_url':url}).eq('id',uid);if(!mounted)return;setState(()=>data=load());toast(context,'Profil fotoğrafı güncellendi');}catch(e){if(mounted)toast(context,'Fotoğraf yüklenemedi: ${err(e)}');}finally{if(mounted)setState(()=>uploading=false);}}
- @override Widget build(BuildContext c)=>FutureBuilder<Map<String,dynamic>?>(future:data,builder:(c,s){if(s.connectionState!=ConnectionState.done)return const LoadingPage();if(s.hasError)return AppPanel(child:Text(err(s.error!)));final p=s.data??{};fill(p);final url=(p['avatar_url']??'').toString();return AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[const SectionHeading('Kişisel bilgiler'),Center(child:Column(children:[CircleAvatar(radius:42,backgroundImage:url.isEmpty?null:NetworkImage(url),child:url.isEmpty?const Icon(Icons.person,size:38):null),OutlinedButton.icon(onPressed:uploading?null:photo,icon:const Icon(Icons.camera_alt_outlined),label:Text(uploading?'Yükleniyor…':'Profil fotoğrafı ekle'))])),const FieldLabel('AD'),TextField(controller:first),const SizedBox(height:10),const FieldLabel('SOYAD'),TextField(controller:last),const SizedBox(height:10),const FieldLabel('TELEFON'),TextField(controller:phone,keyboardType:TextInputType.phone),const SizedBox(height:14),ElevatedButton(onPressed:busy?null:save,child:Text(busy?'Kaydediliyor…':'Bilgilerimi kaydet'))]));});
+ @override Widget build(BuildContext c)=>FutureBuilder<Map<String,dynamic>?>(future:data,builder:(c,s){if(s.connectionState!=ConnectionState.done)return const LoadingPage();if(s.hasError)return AppPanel(child:Text(err(s.error!)));final p=s.data??{};fill(p);final url=(p['avatar_url']??'').toString();return AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[const SectionHeading('Kişisel bilgiler'),Center(child:Column(children:[ProfileAvatar(url:url,size:88),OutlinedButton.icon(onPressed:uploading?null:photo,icon:const Icon(Icons.camera_alt_outlined),label:Text(uploading?'Yükleniyor…':'Profil fotoğrafı ekle'))])),const FieldLabel('AD'),TextField(controller:first),const SizedBox(height:10),const FieldLabel('SOYAD'),TextField(controller:last),const SizedBox(height:10),const FieldLabel('TELEFON'),TextField(controller:phone,keyboardType:TextInputType.phone),const SizedBox(height:14),ElevatedButton(onPressed:busy?null:save,child:Text(busy?'Kaydediliyor…':'Bilgilerimi kaydet'))]));});
 }
 
 class CustomerProfilePage extends StatefulWidget {
@@ -1774,6 +1807,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
     final initial = name.trim().isEmpty ? 'B' : name.trim()[0].toUpperCase();
     final email = (profile['email'] ?? '').toString();
     final phone = (profile['phone'] ?? '').toString();
+    final avatarUrl = (profile['avatar_url'] ?? '').toString();
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1788,30 +1822,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
       ),
       child: Row(
         children: [
-          Container(
-            width: 62,
-            height: 62,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(colors: [goldLight, gold]),
-              boxShadow: [
-                BoxShadow(
-                  color: gold.withValues(alpha: .18),
-                  blurRadius: 20,
-                  offset: const Offset(0, 7),
-                ),
-              ],
-            ),
-            child: Text(
-              initial,
-              style: const TextStyle(
-                color: ink,
-                fontSize: 25,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
+          ProfileAvatar(url: avatarUrl, size: 66),
           const SizedBox(width: 15),
           Expanded(
             child: Column(
