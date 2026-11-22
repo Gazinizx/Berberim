@@ -1804,7 +1804,6 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
 
   Widget _profileCard(Map<String, dynamic> profile) {
     final name = (profile['full_name'] ?? 'Berberim kullanıcısı').toString();
-    final initial = name.trim().isEmpty ? 'B' : name.trim()[0].toUpperCase();
     final email = (profile['email'] ?? '').toString();
     final phone = (profile['phone'] ?? '').toString();
     final avatarUrl = (profile['avatar_url'] ?? '').toString();
@@ -2378,9 +2377,12 @@ class CustomerPage extends StatefulWidget {
 
 class _CustomerPageState extends State<CustomerPage> {
  late Future<List<Map<String,dynamic>>> memberships;
+ late Future<Map<String,dynamic>?> customerProfile;
  int _tab = 0;
 
- @override void initState() { super.initState(); memberships = _load(); }
+ @override void initState() { super.initState(); memberships = _load(); customerProfile = _loadProfile(); }
+
+ Future<Map<String,dynamic>?> _loadProfile() => sb.from('profiles').select('avatar_url').eq('id',uid).maybeSingle();
 
  Future<List<Map<String,dynamic>>> _load() async {
   final rows = await sb.from('business_memberships').select('business_id,businesses(id,name)').eq('customer_id',uid);
@@ -2401,8 +2403,7 @@ class _CustomerPageState extends State<CustomerPage> {
  Future<void> _profile() async {
   setState(()=>_tab=3);
   final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(builder:(_)=>const CustomerProfilePage()));
-  if(changed==true && mounted)setState(()=>memberships=_load());
-  if(mounted)setState(()=>_tab=0);
+  if(mounted)setState(() { customerProfile=_loadProfile(); if(changed==true) memberships=_load(); _tab=0; });
  }
 
  void _appointments() {
@@ -2654,7 +2655,7 @@ class _CustomerPageState extends State<CustomerPage> {
    ]),
    actions:[
     notificationAction(context),
-    IconButton(tooltip:'Profilim',onPressed:_profile,icon:const Icon(Icons.person_outline_rounded)),
+    FutureBuilder<Map<String,dynamic>?>(future:customerProfile,builder:(context,snapshot)=>IconButton(tooltip:'Profilim',onPressed:_profile,icon:ProfileAvatar(url:(snapshot.data?['avatar_url']??'').toString(),size:32))),
    ],
   ),
   bottomNavigationBar:NavigationBar(
