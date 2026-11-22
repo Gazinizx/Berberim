@@ -47,6 +47,7 @@ select
   now()
 from public.appointments a
 where a.status = 'no_show'
+  and a.starts_at <= now()
 group by a.business_id, a.customer_id
 on conflict (business_id, customer_id) do update
 set no_show_count = greatest(
@@ -72,7 +73,7 @@ security definer
 set search_path = ''
 as $function$
 begin
-  if old.status is distinct from new.status and new.status = 'no_show' then
+  if old.status is distinct from new.status and new.status = 'no_show' and new.starts_at <= now() then
     if auth.uid() is null then raise exception 'Giriş yapmalısınız'; end if;
 
     insert into public.business_customer_controls (
@@ -111,7 +112,7 @@ drop trigger if exists appointments_track_customer_no_show on public.appointment
 create trigger appointments_track_customer_no_show
   after update of status on public.appointments
   for each row
-  when (old.status is distinct from new.status and new.status = 'no_show')
+  when (old.status is distinct from new.status and new.status = 'no_show' and new.starts_at <= now())
   execute function private.track_customer_no_show();
 
 -- Only the business owner can read the customer list and mutate blacklist state.
