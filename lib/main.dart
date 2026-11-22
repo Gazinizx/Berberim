@@ -2133,7 +2133,7 @@ class CustomerRecordPickerPage extends StatelessWidget {
           Text((row[nameKey]??'').toString(),style:const TextStyle(fontWeight:FontWeight.w900,fontSize:14)),
           if(detailKey!=null)...[const SizedBox(height:5),Text(detailKey=='price'?' ${row['price']} TL  ·  ${row['duration_minutes']} dk':(row[detailKey]??'').toString(),style:const TextStyle(color:muted,fontSize:11))],
         ])),const Icon(Icons.arrow_forward_ios_rounded,color:gold,size:15),
-      ]))))),
+      ])))))),
     ]),
   );
 }
