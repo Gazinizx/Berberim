@@ -2756,7 +2756,7 @@ class _CustomerDateTimePageState extends State<CustomerDateTimePage> {
     finally{if(mounted)setState(()=>busy=false);}
   }
   @override Widget build(BuildContext context)=>Scaffold(
-    appBar:AppBar(title:Text('$totalSteps / $totalSteps · Tarih ve saat')),
+    appBar:AppBar(title:Text('${widget.totalSteps} / ${widget.totalSteps} · Tarih ve saat')),
     body:ListView(padding:const EdgeInsets.fromLTRB(18,12,18,30),children:[
       const ScreenHeading(eyebrow:'SON ADIM',title:'Zamanını belirle',subtitle:'Sana uygun günü ve müsait saati seç.',icon:Icons.calendar_month_rounded),
       Container(padding:const EdgeInsets.all(17),decoration:BoxDecoration(color:panel,borderRadius:BorderRadius.circular(22),border:Border.all(color:border)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
