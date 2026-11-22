@@ -11,6 +11,59 @@ void main() {
   });
 
 
+  test('only past active appointments can be marked as no-show', () {
+    final now = DateTime.utc(2026, 11, 22, 20);
+    expect(
+      canMarkAppointmentNoShow({
+        'status': 'confirmed',
+        'starts_at': '2026-11-22T19:00:00Z',
+      }, now: now),
+      isTrue,
+    );
+    expect(
+      canMarkAppointmentNoShow({
+        'status': 'confirmed',
+        'starts_at': '2026-11-22T21:00:00Z',
+      }, now: now),
+      isFalse,
+    );
+    expect(
+      canMarkAppointmentNoShow({
+        'status': 'pending',
+        'starts_at': '2026-11-22T19:00:00Z',
+        'requires_business_approval': true,
+      }, now: now),
+      isFalse,
+    );
+    expect(
+      canMarkAppointmentNoShow({
+        'status': 'no_show',
+        'starts_at': '2026-11-22T19:00:00Z',
+      }, now: now),
+      isFalse,
+    );
+  });
+
+  test('business customer search matches name and phone and filters blacklist', () {
+    final rows = <Map<String, dynamic>>[
+      {'customer_id': '1', 'full_name': 'Ayşe Yılmaz', 'phone': '5551112233', 'is_blacklisted': true},
+      {'customer_id': '2', 'full_name': 'Mehmet Demir', 'phone': '5552223344', 'is_blacklisted': false},
+    ];
+
+    expect(
+      filterBusinessCustomers(rows, query: 'ayşe').map((row) => row['customer_id']).toList(),
+      ['1'],
+    );
+    expect(
+      filterBusinessCustomers(rows, query: '2223').map((row) => row['customer_id']).toList(),
+      ['2'],
+    );
+    expect(
+      filterBusinessCustomers(rows, onlyBlacklisted: true).map((row) => row['customer_id']).toList(),
+      ['1'],
+    );
+  });
+
   test('Berberim theme uses the agreed gold accent', () {
     expect(gold.value, 0xFFD8B36A);
   });
