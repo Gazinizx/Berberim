@@ -897,6 +897,39 @@ class _BarberPageState extends State<BarberPage> {
     appointmentsFuture = _loadAppointments();
   }
 
+  bool profilePhotoUploading = false;
+
+  Future<void> _changeBusinessProfilePhoto() async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 82,
+        maxWidth: 1400,
+      );
+      if (picked == null) return;
+      if (mounted) setState(() => profilePhotoUploading = true);
+      final extension = picked.name.split('.').last.toLowerCase();
+      final safeExtension = ['jpg', 'jpeg', 'png', 'webp'].contains(extension) ? extension : 'jpg';
+      final contentType = safeExtension == 'png'
+          ? 'image/png'
+          : safeExtension == 'webp' ? 'image/webp' : 'image/jpeg';
+      final userId = sb.auth.currentUser!.id;
+      final path = '$userId/avatar_${DateTime.now().microsecondsSinceEpoch}.$safeExtension';
+      await sb.storage.from('profile-photos').uploadBinary(
+        path,
+        await picked.readAsBytes(),
+        fileOptions: FileOptions(upsert: true, contentType: contentType),
+      );
+      final url = sb.storage.from('profile-photos').getPublicUrl(path);
+      await sb.from('profiles').update({'avatar_url': url}).eq('id', userId);
+      if (mounted) toast(context, 'İşletme profil fotoğrafı güncellendi');
+    } catch (error) {
+      if (mounted) toast(context, 'Fotoğraf yüklenemedi: ${err(error)}');
+    } finally {
+      if (mounted) setState(() => profilePhotoUploading = false);
+    }
+  }
+
   Future<List<Map<String, dynamic>>> _loadAppointments() async {
     final rows = await sb.rpc('get_business_appointments', params: {
       'p_business_id': widget.business['id'], 'p_mine_only': false,
@@ -1316,8 +1349,19 @@ class _BarberPageState extends State<BarberPage> {
           AppPanel(
             padding: const EdgeInsets.all(19),
             child: Row(children: [
-              ProfileAvatar(url: avatarUrl, size: 62, icon: Icons.storefront_rounded),
-              const SizedBox(width: 14),
+              Column(mainAxisSize: MainAxisSize.min, children: [
+                ProfileAvatar(url: avatarUrl, size: 62, icon: Icons.storefront_rounded),
+                const SizedBox(height: 6),
+                TextButton.icon(
+                  onPressed: profilePhotoUploading ? null : _changeBusinessProfilePhoto,
+                  icon: profilePhotoUploading
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.camera_alt_outlined, size: 15),
+                  label: Text(profilePhotoUploading ? 'Yükleniyor' : 'Fotoğrafı değiştir'),
+                  style: TextButton.styleFrom(foregroundColor: goldLight, padding: const EdgeInsets.symmetric(horizontal: 4)),
+                ),
+              ]),
+              const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
