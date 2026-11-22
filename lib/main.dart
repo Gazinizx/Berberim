@@ -1791,444 +1791,110 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
 
 class CustomerAppointmentsPage extends StatefulWidget {
   const CustomerAppointmentsPage({super.key});
-
-  @override
-  State<CustomerAppointmentsPage> createState() => _CustomerAppointmentsPageState();
+  @override State<CustomerAppointmentsPage> createState() => _CustomerAppointmentsPageState();
 }
-
 class _CustomerAppointmentsPageState extends State<CustomerAppointmentsPage> {
-  late Future<List<Map<String, dynamic>>> appointmentsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    appointmentsFuture = _load();
+  late Future<List<Map<String,dynamic>>> future;
+  @override void initState(){super.initState();future=_load();}
+  Future<List<Map<String,dynamic>>> _load() async {
+    final rows=await sb.from('appointments').select('id,starts_at,ends_at,status,requires_business_approval,businesses(name),services(name)').eq('customer_id',uid).order('starts_at',ascending:false).limit(100);
+    return (rows as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList();
   }
-
-  Future<List<Map<String, dynamic>>> _load() async {
-    final rows = await sb.from('appointments')
-        .select('id,starts_at,ends_at,status,requires_business_approval,businesses(name),services(name)')
-        .eq('customer_id', uid)
-        .order('starts_at', ascending: false)
-        .limit(100);
-    return (rows as List)
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
-  }
-
-  Future<void> refresh() async {
-    final next = _load();
-    if (mounted) setState(() => appointmentsFuture = next);
-    await next;
-  }
-
-  List<Map<String, dynamic>> _byStatus(
-    List<Map<String, dynamic>> rows,
-    String group,
-  ) => filterCustomerAppointments(rows, group);
-
-  void _openCategory(String group, String title, String subtitle) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => CustomerAppointmentCategoryPage(
-        group: group,
-        title: title,
-        subtitle: subtitle,
-      ),
-    ));
-  }
-
-  Widget _categoryCard({
-    required String group,
-    required String title,
-    required String subtitle,
-    required int count,
-    required IconData icon,
-    required Color color,
-  }) => AppPanel(
-    margin: const EdgeInsets.only(bottom: 11),
-    padding: EdgeInsets.zero,
-    child: InkWell(
-      borderRadius: BorderRadius.circular(24),
-      onTap: () => _openCategory(group, title, subtitle),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
-        child: Row(children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(width: 13),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-              )),
-              const SizedBox(height: 4),
-              Text(subtitle, style: const TextStyle(
-                color: muted,
-                fontSize: 11,
-                height: 1.35,
-              )),
-            ],
-          )),
-          Container(
-            constraints: const BoxConstraints(minWidth: 34),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text('${count}', textAlign: TextAlign.center, style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w900,
-              fontSize: 15,
-            )),
-          ),
-          const SizedBox(width: 8),
-          const Icon(Icons.chevron_right_rounded, color: muted),
-        ]),
-      ),
-    ),
+  Future<void> _refresh() async {final f=_load();if(mounted)setState(()=>future=f);await f;}
+  void _open(String group,String title,String subtitle)=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CustomerAppointmentCategoryPage(group:group,title:title,subtitle:subtitle)));
+  Widget _tile(String group,String title,String subtitle,int count,IconData icon,Color color)=>Container(
+    margin:const EdgeInsets.only(bottom:12),
+    decoration:BoxDecoration(color:panel,borderRadius:BorderRadius.circular(22),border:Border.all(color:border)),
+    child:Material(color:Colors.transparent,child:InkWell(borderRadius:BorderRadius.circular(22),onTap:()=>_open(group,title,subtitle),
+      child:Padding(padding:const EdgeInsets.all(16),child:Row(children:[
+        Container(width:48,height:48,decoration:BoxDecoration(color:color.withValues(alpha:.12),borderRadius:BorderRadius.circular(15)),child:Icon(icon,color:color)),
+        const SizedBox(width:13),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text(title,style:const TextStyle(fontSize:14,fontWeight:FontWeight.w900)),
+          const SizedBox(height:4),Text(subtitle,style:const TextStyle(color:muted,fontSize:10)),
+        ])),
+        Container(padding:const EdgeInsets.symmetric(horizontal:11,vertical:8),decoration:BoxDecoration(color:color.withValues(alpha:.12),borderRadius:BorderRadius.circular(12)),child:Text('$count',style:TextStyle(color:color,fontWeight:FontWeight.w900,fontSize:15))),
+        const SizedBox(width:5),const Icon(Icons.arrow_forward_ios_rounded,color:muted,size:14),
+      ])))),
   );
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Randevularım'),
-      actions: [
-        IconButton(
-          tooltip: 'Yenile',
-          onPressed: refresh,
-          icon: const Icon(Icons.refresh_rounded),
-        ),
-      ],
-    ),
-    body: FutureBuilder<List<Map<String, dynamic>>>(
-      future: appointmentsFuture,
-      builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const LoadingPage();
-        }
-        if (snap.hasError) return ErrorPage(message: err(snap.error!));
-
-        final all = snap.data ?? [];
-        final upcoming = _byStatus(all, 'upcoming');
-        final completed = _byStatus(all, 'completed');
-        final cancelled = _byStatus(all, 'cancelled');
-        final next = upcoming.isEmpty ? null : upcoming.first;
-        final nextDate = next == null
-            ? null
-            : DateTime.tryParse(next['starts_at'].toString())?.toLocal();
-
-        return RefreshIndicator(
-          onRefresh: refresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
-            children: [
-              const ScreenHeading(
-                eyebrow: 'KİŞİSEL TAKVİM',
-                title: 'Randevularım',
-                subtitle: 'Her randevu grubunu ayrı ekranda, kolayca takip et.',
-                icon: Icons.calendar_month_rounded,
-              ),
-              AppPanel(
-                padding: const EdgeInsets.all(17),
-                child: Row(children: [
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: gold.withValues(alpha: .12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(Icons.event_note_rounded, color: gold),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Toplam randevun', style: TextStyle(
-                        color: muted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      )),
-                      const SizedBox(height: 3),
-                      Text('${all.length}', style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                      )),
-                    ],
-                  )),
-                  if (nextDate != null) Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text('Sıradaki', style: TextStyle(
-                        color: muted,
-                        fontSize: 10,
-                      )),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${nextDate.day.toString().padLeft(2, '0')}.${nextDate.month.toString().padLeft(2, '0')}',
-                        style: const TextStyle(
-                          color: goldLight,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 15,
-                        ),
-                      ),
-                      Text(
-                        '${nextDate.hour.toString().padLeft(2, '0')}:${nextDate.minute.toString().padLeft(2, '0')}',
-                        style: const TextStyle(
-                          color: ivory,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ]),
-              ),
-              const SizedBox(height: 20),
-              const SectionHeading('Randevu kategorileri'),
-              _categoryCard(
-                group: 'upcoming',
-                title: 'Yaklaşan randevular',
-                subtitle: 'Gelecek randevularını ve saatlerini gör.',
-                count: upcoming.length,
-                icon: Icons.event_available_rounded,
-                color: gold,
-              ),
-              _categoryCard(
-                group: 'completed',
-                title: 'Tamamlanan randevular',
-                subtitle: 'Daha önce aldığın hizmetleri incele.',
-                count: completed.length,
-                icon: Icons.task_alt_rounded,
-                color: Colors.greenAccent,
-              ),
-              _categoryCard(
-                group: 'cancelled',
-                title: 'İptal edilen randevular',
-                subtitle: 'İptal edilen veya katılmadığın randevular.',
-                count: cancelled.length,
-                icon: Icons.event_busy_rounded,
-                color: Colors.redAccent,
-              ),
-            ],
-          ),
-        );
-      },
-    ),
+  @override Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('Randevularım'),actions:[IconButton(onPressed:_refresh,icon:const Icon(Icons.refresh_rounded))]),
+    body:FutureBuilder<List<Map<String,dynamic>>>(future:future,builder:(context,s){
+      if(s.connectionState!=ConnectionState.done)return const LoadingPage();
+      if(s.hasError)return ErrorPage(message:err(s.error!));
+      final all=s.data??[], upcoming=filterCustomerAppointments(all,'upcoming'), completed=filterCustomerAppointments(all,'completed'), cancelled=filterCustomerAppointments(all,'cancelled');
+      final next=upcoming.isEmpty?null:DateTime.tryParse((upcoming.first['starts_at']??'').toString())?.toLocal();
+      return RefreshIndicator(onRefresh:_refresh,child:ListView(physics:const AlwaysScrollableScrollPhysics(),padding:const EdgeInsets.fromLTRB(18,12,18,28),children:[
+        const ScreenHeading(eyebrow:'SANA ÖZEL TAKVİM',title:'Randevularım',subtitle:'Tüm randevularını sade ve düzenli şekilde takip et.',icon:Icons.calendar_month_rounded),
+        Container(padding:const EdgeInsets.all(19),decoration:BoxDecoration(borderRadius:BorderRadius.circular(25),gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF373024),Color(0xFF202126),Color(0xFF17181B)]),border:Border.all(color:gold.withValues(alpha:.25))),
+          child:Row(children:[
+            Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+              const Text('TOPLAM RANDEVU',style:TextStyle(color:goldLight,fontSize:9,fontWeight:FontWeight.w900,letterSpacing:1.1)),
+              const SizedBox(height:7),Text('${all.length}',style:const TextStyle(fontSize:34,height:1,fontWeight:FontWeight.w900)),
+              const SizedBox(height:8),Text('${upcoming.length} yaklaşan randevun var',style:const TextStyle(color:Color(0xFFD1CCC2),fontSize:11)),
+            ])),
+            Container(width:1,height:62,color:Colors.white.withValues(alpha:.12)),const SizedBox(width:16),
+            Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.end,children:[
+              const Text('SIRADAKİ RANDEVU',style:TextStyle(color:muted,fontSize:9,fontWeight:FontWeight.w800)),
+              const SizedBox(height:8),
+              if(next!=null) Text('${next.day.toString().padLeft(2,'0')}.${next.month.toString().padLeft(2,'0')}',style:const TextStyle(color:goldLight,fontSize:21,fontWeight:FontWeight.w900))
+              else const Text('Henüz yok',style:TextStyle(color:muted,fontSize:14,fontWeight:FontWeight.w800)),
+              if(next!=null) Text('${next.hour.toString().padLeft(2,'0')}:${next.minute.toString().padLeft(2,'0')}',style:const TextStyle(fontSize:13,fontWeight:FontWeight.w800)),
+            ])),
+          ])),
+        const SizedBox(height:25),const SectionHeading('Randevu geçmişin'),const SizedBox(height:12),
+        _tile('upcoming','Yaklaşan randevular','Planladığın ve onay bekleyen randevular.',upcoming.length,Icons.event_available_rounded,goldLight),
+        _tile('completed','Tamamlanan randevular','Aldığın hizmetlerin geçmişi.',completed.length,Icons.task_alt_rounded,const Color(0xFF83C99B)),
+        _tile('cancelled','İptal edilen randevular','İptal edilen veya katılmadığın randevular.',cancelled.length,Icons.event_busy_rounded,const Color(0xFFE58F89)),
+      ]));
+    }),
   );
 }
 
 class CustomerAppointmentCategoryPage extends StatefulWidget {
-  const CustomerAppointmentCategoryPage({
-    super.key,
-    required this.group,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final String group;
-  final String title;
-  final String subtitle;
-
-  @override
-  State<CustomerAppointmentCategoryPage> createState() =>
-      _CustomerAppointmentCategoryPageState();
+  const CustomerAppointmentCategoryPage({super.key,required this.group,required this.title,required this.subtitle});
+  final String group,title,subtitle;
+  @override State<CustomerAppointmentCategoryPage> createState()=>_CustomerAppointmentCategoryPageState();
 }
-
-class _CustomerAppointmentCategoryPageState
-    extends State<CustomerAppointmentCategoryPage> {
-  late Future<List<Map<String, dynamic>>> appointmentsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    appointmentsFuture = _load();
+class _CustomerAppointmentCategoryPageState extends State<CustomerAppointmentCategoryPage>{
+  late Future<List<Map<String,dynamic>>> future;
+  @override void initState(){super.initState();future=_load();}
+  Future<List<Map<String,dynamic>>> _load() async {
+    final rows=await sb.from('appointments').select('id,starts_at,ends_at,status,requires_business_approval,businesses(name),services(name)').eq('customer_id',uid).order('starts_at',ascending:false).limit(100);
+    return filterCustomerAppointments((rows as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList(),widget.group);
   }
-
-  Future<List<Map<String, dynamic>>> _load() async {
-    final rows = await sb.from('appointments')
-        .select('id,starts_at,ends_at,status,requires_business_approval,businesses(name),services(name)')
-        .eq('customer_id', uid)
-        .order('starts_at', ascending: false)
-        .limit(100);
-    final all = (rows as List)
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
-
-    return filterCustomerAppointments(all, widget.group);
+  Future<void> _refresh() async {final f=_load();if(mounted)setState(()=>future=f);await f;}
+  Widget _card(Map<String,dynamic> a){
+    final b=a['businesses'] as Map<String,dynamic>???{}, service=a['services'] as Map<String,dynamic>???{}, status=(a['status']??'').toString(), approval=a['requires_business_approval']==true;
+    final color=approval?const Color(0xFFE6AE69):status=='completed'?const Color(0xFF83C99B):status=='cancelled'||status=='no_show'?const Color(0xFFE58F89):goldLight;
+    final d=DateTime.tryParse((a['starts_at']??'').toString())?.toLocal();
+    final day=d==null?'Tarih yok':'${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}', time=d==null?'--:--':'${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';
+    return Container(margin:const EdgeInsets.only(bottom:13),padding:const EdgeInsets.all(16),decoration:BoxDecoration(color:panel,borderRadius:BorderRadius.circular(23),border:Border.all(color:border)),child:Column(children:[
+      Row(children:[
+        Container(width:44,height:44,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(14)),child:const Icon(Icons.storefront_rounded,color:gold)),
+        const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text((b['name']??'İşletme').toString(),maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:14,fontWeight:FontWeight.w900)),
+          const SizedBox(height:4),Text((service['name']??'Hizmet').toString(),style:const TextStyle(color:muted,fontSize:11)),
+        ])),
+        Container(padding:const EdgeInsets.symmetric(horizontal:9,vertical:7),decoration:BoxDecoration(color:color.withValues(alpha:.12),borderRadius:BorderRadius.circular(10)),child:Text(approval?'ONAY BEKLİYOR':appointmentStatusLabel(status),style:TextStyle(color:color,fontSize:8,fontWeight:FontWeight.w900))),
+      ]),
+      const SizedBox(height:15),Container(padding:const EdgeInsets.symmetric(horizontal:13,vertical:12),decoration:BoxDecoration(color:ink,borderRadius:BorderRadius.circular(15),border:Border.all(color:border)),child:Row(children:[
+        const Icon(Icons.calendar_month_rounded,color:gold,size:17),const SizedBox(width:8),Expanded(child:Text(day,style:const TextStyle(fontSize:12,fontWeight:FontWeight.w800))),
+        const Icon(Icons.schedule_rounded,color:gold,size:17),const SizedBox(width:7),Text(time,style:const TextStyle(color:goldLight,fontSize:15,fontWeight:FontWeight.w900)),
+      ])),
+    ]));
   }
-
-  Future<void> refresh() async {
-    final next = _load();
-    if (mounted) setState(() => appointmentsFuture = next);
-    await next;
-  }
-
-  Widget _appointmentCard(Map<String, dynamic> appointment) {
-    final business = appointment['businesses'] as Map<String, dynamic>? ?? {};
-    final service = appointment['services'] as Map<String, dynamic>? ?? {};
-    final status = (appointment['status'] ?? '').toString();
-    final color = status == 'completed'
-        ? Colors.greenAccent
-        : status == 'cancelled' || status == 'no_show'
-            ? Colors.redAccent
-            : gold;
-    final parsed = DateTime.tryParse(
-      (appointment['starts_at'] ?? '').toString(),
-    )?.toLocal();
-    final day = parsed == null
-        ? 'Tarih bilgisi yok'
-        : '${parsed.day.toString().padLeft(2, '0')}.${parsed.month.toString().padLeft(2, '0')}.${parsed.year}';
-    final time = parsed == null
-        ? '--:--'
-        : '${parsed.hour.toString().padLeft(2, '0')}:${parsed.minute.toString().padLeft(2, '0')}';
-
-    return AppPanel(
-      margin: const EdgeInsets.only(bottom: 11),
-      padding: const EdgeInsets.all(15),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Container(
-              width: 43,
-              height: 43,
-              decoration: BoxDecoration(
-                color: gold.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(Icons.storefront_rounded, color: gold),
-            ),
-            const SizedBox(width: 11),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  (business['name'] ?? 'İşletme').toString(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  (service['name'] ?? 'Hizmet').toString(),
-                  style: const TextStyle(color: muted, fontSize: 12),
-                ),
-              ],
-            )),
-            StatusTag(
-              appointment['requires_business_approval'] == true
-                  ? 'İŞLETME ONAYI BEKLENİYOR'
-                  : appointmentStatusLabel(status),
-              color: appointment['requires_business_approval'] == true ? Colors.orangeAccent : color,
-            ),
-          ]),
-          const SizedBox(height: 13),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            decoration: BoxDecoration(
-              color: ink,
-              borderRadius: BorderRadius.circular(13),
-              border: Border.all(color: border),
-            ),
-            child: Row(children: [
-              const Icon(Icons.calendar_month_rounded, size: 17, color: gold),
-              const SizedBox(width: 8),
-              Expanded(child: Text(day, style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ))),
-              const Icon(Icons.schedule_rounded, size: 17, color: gold),
-              const SizedBox(width: 6),
-              Text(time, style: const TextStyle(
-                color: goldLight,
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-              )),
-            ]),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(widget.title),
-      actions: [
-        IconButton(
-          tooltip: 'Yenile',
-          onPressed: refresh,
-          icon: const Icon(Icons.refresh_rounded),
-        ),
-      ],
-    ),
-    body: FutureBuilder<List<Map<String, dynamic>>>(
-      future: appointmentsFuture,
-      builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const LoadingPage();
-        }
-        if (snap.hasError) return ErrorPage(message: err(snap.error!));
-        final rows = snap.data ?? [];
-        if (rows.isEmpty) {
-          return RefreshIndicator(
-            onRefresh: refresh,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(20),
-              children: [
-                ScreenHeading(
-                  title: widget.title,
-                  subtitle: widget.subtitle,
-                  icon: Icons.event_note_rounded,
-                ),
-                const AppPanel(
-                  child: EmptyStateView(
-                    icon: Icons.event_busy_rounded,
-                    title: 'Bu bölümde randevu yok',
-                    subtitle: 'Yeni bir randevu oluştuğunda burada göreceksin.',
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-        return RefreshIndicator(
-          onRefresh: refresh,
-          child: ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
-            itemCount: rows.length + 1,
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return ScreenHeading(
-                  title: widget.title,
-                  subtitle: widget.subtitle,
-                  icon: Icons.event_note_rounded,
-                );
-              }
-              return _appointmentCard(rows[index - 1]);
-            },
-          ),
-        );
-      },
-    ),
+  @override Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:Text(widget.title),actions:[IconButton(onPressed:_refresh,icon:const Icon(Icons.refresh_rounded))]),
+    body:FutureBuilder<List<Map<String,dynamic>>>(future:future,builder:(context,s){
+      if(s.connectionState!=ConnectionState.done)return const LoadingPage();
+      if(s.hasError)return ErrorPage(message:err(s.error!));
+      final rows=s.data??[];
+      return RefreshIndicator(onRefresh:_refresh,child:ListView(physics:const AlwaysScrollableScrollPhysics(),padding:const EdgeInsets.fromLTRB(18,12,18,28),children:[
+        ScreenHeading(eyebrow:'RANDEVU ARŞİVİ',title:widget.title,subtitle:widget.subtitle,icon:Icons.event_note_rounded),
+        if(rows.isEmpty)const AppPanel(child:EmptyStateView(icon:Icons.event_busy_rounded,title:'Burada henüz randevu yok',subtitle:'Yeni bir randevu oluştuğunda bu alanda göreceksin.')),
+        ...rows.map(_card),
+      ]));
+    }),
   );
 }
 
