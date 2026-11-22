@@ -2,7 +2,7 @@ alter table public.profiles add column if not exists first_name text not null de
 do $m$ declare r record; fn text[]:=array['Ahmet','Mehmet','Emre','Burak','Mert','Can','Ayşe','Fatma','Zeynep','Elif']; ln text[]:=array['Yılmaz','Kaya','Demir','Çelik','Şahin','Aydın','Arslan','Doğan','Kara','Koç']; f text;l text;ph text; begin
 for r in select id,full_name,first_name,last_name,phone from public.profiles where account_type='customer' and is_blocked=false loop
 f:=coalesce(nullif(btrim(r.first_name),''),nullif(split_part(btrim(coalesce(r.full_name,'')),' ',1),''),fn[1+floor(random()*array_length(fn,1))::int]);
-l:=coalesce(nullif(btrim(r.last_name),''),nullif(btrim(regexp_replace(btrim(coalesce(r.full_name,'')),'^\S+\s*','')),''),ln[1+floor(random()*array_length(ln,1))::int]);
+l:=coalesce(nullif(btrim(r.last_name),''),nullif(btrim(substr(btrim(coalesce(r.full_name,'')),length(split_part(btrim(coalesce(r.full_name,'')),' ',1))+1)),''),ln[1+floor(random()*array_length(ln,1))::int]);
 ph:=coalesce(nullif(btrim(r.phone),''),'TEST-'||upper(substr(replace(r.id::text,'-',''),1,8)));
 update public.profiles set first_name=f,last_name=l,full_name=concat_ws(' ',f,l),phone=ph where id=r.id;end loop;end $m$;
 create or replace function private.handle_new_user() returns trigger language plpgsql security definer set search_path='' as $f$
