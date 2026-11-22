@@ -428,3 +428,109 @@ $function$;
 revoke all on function private.update_appointment_status(uuid, text) from public, anon;
 grant execute on function private.update_appointment_status(uuid, text) to authenticated;
 
+
+-- Keep notification copy accurate for both automatic and manual blacklist entries.
+create or replace function private.notify_appointment_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_owner uuid;
+  v_employee uuid;
+  v_service text;
+  v_when text;
+begin
+  select b.owner_id into v_owner
+  from public.businesses b where b.id = new.business_id;
+
+  select e.user_id into v_employee
+  from public.employees e where e.id = new.employee_id;
+
+  select s.name into v_service
+  from public.services s where s.id = new.service_id;
+
+  v_when := to_char(new.starts_at at time zone 'Europe/Istanbul', 'DD.MM.YYYY HH24:MI');
+
+  if tg_op = 'INSERT' then
+    if new.requires_business_approval then
+      insert into public.notifications(user_id, appointment_id, title, body)
+      values (
+        new.customer_id, new.id, 'İşletme onayı bekleniyor',
+        'Bu işletmenin kara liste kaydı nedeniyle randevu talebin işletme sahibinin onayına gönderildi: ' || v_when
+      );
+
+      insert into public.notifications(user_id, appointment_id, title, body)
+      values (
+        v_owner, new.id, 'Özel randevu onayı gerekli',
+        coalesce(v_service, 'Hizmet') || ' için kara listedeki müşteriden onay talebi: ' || v_when
+      );
+
+      if v_employee is not null and v_employee <> v_owner then
+        insert into public.notifications(user_id, appointment_id, title, body)
+        values (
+          v_employee, new.id, 'Özel onay bekleyen randevu',
+          coalesce(v_service, 'Hizmet') || ' için işletme sahibinin onayı bekleniyor: ' || v_when
+        );
+      end if;
+    else
+      insert into public.notifications(user_id, appointment_id, title, body)
+      values (
+        new.customer_id, new.id, 'Randevu talebin alındı',
+        coalesce(v_service, 'Hizmet') || ' için randevu talebin: ' || v_when
+      );
+
+      insert into public.notifications(user_id, appointment_id, title, body)
+      values (
+        v_owner, new.id, 'Yeni randevu talebi',
+        coalesce(v_service, 'Hizmet') || ' için randevu: ' || v_when
+      );
+
+      if v_employee is not null and v_employee <> v_owner then
+        insert into public.notifications(user_id, appointment_id, title, body)
+        values (
+          v_employee, new.id, 'Yeni randevu talebi',
+          coalesce(v_service, 'Hizmet') || ' için randevu: ' || v_when
+        );
+      end if;
+    end if;
+
+  elsif old.status is distinct from new.status then
+    if new.status = 'confirmed' then
+      insert into public.notifications(user_id, appointment_id, title, body)
+      values (
+        new.customer_id, new.id, 'Randevun onaylandı',
+        coalesce(v_service, 'Hizmet') || ' için randevun onaylandı: ' || v_when
+      );
+
+    elsif new.status = 'cancelled' then
+      insert into public.notifications(user_id, appointment_id, title, body)
+      values (
+        new.customer_id, new.id, 'Randevu iptal edildi',
+        'Randevunuz iptal edildi: ' || v_when
+      );
+
+      if v_owner is not null and v_owner <> new.customer_id then
+        insert into public.notifications(user_id, appointment_id, title, body)
+        values (v_owner, new.id, 'Randevu iptal edildi', 'Bir randevu iptal edildi: ' || v_when);
+      end if;
+
+      if v_employee is not null and v_employee <> v_owner and v_employee <> new.customer_id then
+        insert into public.notifications(user_id, appointment_id, title, body)
+        values (v_employee, new.id, 'Randevu iptal edildi', 'Bir randevu iptal edildi: ' || v_when);
+      end if;
+
+    elsif new.status = 'completed' then
+      insert into public.notifications(user_id, appointment_id, title, body)
+      values (
+        new.customer_id, new.id, 'Randevun tamamlandı',
+        coalesce(v_service, 'Hizmet') || ' randevun tamamlandı: ' || v_when
+      );
+    end if;
+  end if;
+
+  return new;
+end;
+$function$;
+
