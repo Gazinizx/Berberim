@@ -62,10 +62,18 @@ Deno.serve(async (request: Request) => {
 
     if (action === "create_employee") {
       const businessId = typeof body.business_id === "string" ? body.business_id : "";
-      const displayName = typeof body.display_name === "string" ? body.display_name.trim() : "";
+      const firstName = typeof body.first_name === "string" ? body.first_name.trim() : "";
+      const lastName = typeof body.last_name === "string" ? body.last_name.trim() : "";
+      const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+      const phoneNumber = phoneDigits(phone);
+      const displayName = [firstName, lastName].filter(Boolean).join(" ");
       const password = typeof body.password === "string" ? body.password : "";
-      if (!businessId || displayName.length < 2 || displayName.length > 80) {
-        return json({ error: "İşletme ve geçerli çalışan adı gerekli" }, 400);
+      if (!businessId || firstName.length < 2 || firstName.length > 50 ||
+          lastName.length < 2 || lastName.length > 60) {
+        return json({ error: "İşletme, çalışan adı ve soyadı zorunludur" }, 400);
+      }
+      if (phoneNumber.length !== 10 || !phoneNumber.startsWith("5")) {
+        return json({ error: "Geçerli bir Türkiye cep telefonu numarası girilmelidir" }, 400);
       }
       if (password.length < 8 || password.length > 72) {
         return json({ error: "Çalışan şifresi 8-72 karakter arasında olmalı" }, 400);
@@ -77,7 +85,7 @@ Deno.serve(async (request: Request) => {
       if (businessError) throw businessError;
       if (!business) return json({ error: "Bu işletme üzerinde çalışan oluşturma yetkiniz yok" }, 403);
 
-      const loginUsername = usernamePart(String(business.name)) + "@" + usernamePart(displayName);
+      const loginUsername = usernamePart(String(business.name)) + "@" + usernamePart(firstName);
       if (!loginUsername.includes("@") || loginUsername.startsWith("@") || loginUsername.endsWith("@") || loginUsername.length > 100) {
         return json({ error: "İşletme veya çalışan adı kullanıcı adı oluşturmak için uygun değil" }, 400);
       }
@@ -89,8 +97,9 @@ Deno.serve(async (request: Request) => {
         email_confirm: true,
         user_metadata: {
           full_name: displayName,
-          first_name: displayName,
-          last_name: "",
+          first_name: firstName,
+          last_name: lastName,
+          phone,
           account_type: "customer",
         },
       });
@@ -101,7 +110,7 @@ Deno.serve(async (request: Request) => {
       let employeeId = "";
       try {
         const { data: employee, error: employeeError } = await admin.from("employees")
-          .insert({ business_id: business.id, user_id: created.user.id, display_name: displayName, login_username: loginUsername, is_active: true })
+          .insert({ business_id: business.id, user_id: created.user.id, display_name: displayName, first_name: firstName, last_name: lastName, phone, login_username: loginUsername, is_active: true })
           .select("id").single();
         if (employeeError) throw employeeError;
         employeeId = employee.id;
