@@ -26,6 +26,38 @@ jobs:
       - name: Prepare Android platform
         run: |
           if [ ! -d android ]; then flutter create --platforms=android --org com.gazinizx --project-name berberim .; fi
+      - name: Pin Android Gradle Plugin to lint fix release
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          candidates = [Path("android/settings.gradle.kts"), Path("android/settings.gradle")]
+          settings = next((path for path in candidates if path.exists()), None)
+          if settings is None:
+              raise SystemExit("Android Gradle settings file was not generated")
+
+          source = settings.read_text()
+          patterns = [
+              r'(id\(["\']com\.android\.application["\']\)\s+version\s+["\'])[^"\']+(["\'])',
+              r"(id\s+['\"]com\.android\.application['\"]\s+version\s+['\"])[^'\"]+(['\"])",
+          ]
+          updated = source
+          replacements = 0
+          for pattern in patterns:
+              updated, count = re.subn(pattern, r"\\g<1>9.3.2\\g<2>", updated, count=1)
+              replacements += count
+          if replacements != 1:
+              raise SystemExit(
+                  "Expected exactly one com.android.application plugin version in "
+                  f"{settings}, found {replacements}; refusing to guess."
+              )
+
+          settings.write_text(updated)
+          if "9.3.2" not in settings.read_text():
+              raise SystemExit("AGP 9.3.2 pin was not written")
+          print(f"Android Gradle Plugin pinned to 9.3.2 in {settings}")
+          PY
       - name: Configure Firebase and Android notifications
         run: |
           set -euo pipefail
