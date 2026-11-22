@@ -31,13 +31,15 @@ Privileged database implementations live in the non-exposed `private` schema. Th
 - `claim_employee_invite`: links a single-use, unexpired employee invite to the signed-in employee account; the employee then sees their own appointment dashboard.
 - `get_available_slots`: returns free start times using the business-configured appointment interval, respecting opening hours, breaks and existing appointments.
 - `book_appointment`: validates membership, business status, employee, service, opening hours, breaks and time before inserting.
-- `review_appointment_request`: lets the business owner approve or reject a booking request from a customer with at least three verified no-shows at that same business. These requests reserve the selected time while awaiting review.
+- `review_appointment_request`: lets the business owner approve or reject a booking request from a customer on that business's blacklist. These requests reserve the selected time while awaiting review.
+- `get_business_customers`: returns the business's known customers, their no-show count and blacklist state; callable only by that business's owner.
+- `set_business_customer_blacklist`: lets the business owner manually add/remove a customer from that business's blacklist. Removing a customer resets that business-specific no-show counter.
 - `cancel_appointment`: authorizes cancellation by the customer, assigned employee or business owner.
 - `update_appointment_status`: allows the business owner, assigned employee or admin to mark an appointment completed/no-show.
 - `review_business`: admin-only business approval/rejection/deactivation.
 - `admin_set_user_blocked`: admin-only user blocking.
 
-Appointment insert/cancellation triggers create in-app notifications for the customer, owner and assigned employee where applicable.
+Appointment insert/cancellation triggers create in-app notifications for the customer, owner and assigned employee where applicable. A verified transition to `no_show` increments a business-scoped counter; the third such event automatically blacklists that customer for that business. Blacklist state is isolated per business and requires owner approval for every new booking until removed. Removing a customer resets the counter.
 
 ## First administrator
 
