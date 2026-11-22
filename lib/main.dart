@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:berberim/push_notifications.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -516,8 +517,8 @@ class ErrorPage extends StatelessWidget {
 
 class LoginPage extends StatefulWidget { const LoginPage({super.key}); @override State<LoginPage> createState()=>_LoginPageState(); }
 class _LoginPageState extends State<LoginPage>{
- final email=TextEditingController(),pass=TextEditingController(); bool create=false,busy=false; String message=''; String accountType='customer';
- Future<void> submit() async {setState(()=>busy=true);message='';try{if(create){if(pass.text.length<8)throw Exception('Şifre en az 8 karakter olmalı.');final result=await sb.auth.signUp(email:email.text.trim(),password:pass.text,emailRedirectTo:'berberim://login-callback',data:{'account_type':accountType});if(result.session==null)message='Doğrulama e-postası gönderildi. E-postandaki bağlantıya dokun; Berberim uygulaması açılacak.';}else{await sb.auth.signInWithPassword(email:email.text.trim(),password:pass.text);}}catch(e){message=err(e);}if(mounted)setState(()=>busy=false);}
+ final email=TextEditingController(),pass=TextEditingController(),firstName=TextEditingController(),lastName=TextEditingController(),phone=TextEditingController(); bool create=false,busy=false; String message=''; String accountType='customer';
+ Future<void> submit() async {setState(()=>busy=true);message='';try{if(create){if(pass.text.length<8)throw Exception('Şifre en az 8 karakter olmalı.');final data=<String,dynamic>{'account_type':accountType};if(accountType=='customer'){if(firstName.text.trim().length<2||lastName.text.trim().length<2)throw Exception('Ad ve soyad zorunludur.');final digits=phone.text.replaceAll(RegExp(r'[^0-9]'),'');if(digits.length<10||digits.length>11)throw Exception('Geçerli telefon numarası gir.');data.addAll({'first_name':firstName.text.trim(),'last_name':lastName.text.trim(),'full_name':firstName.text.trim()+' '+lastName.text.trim(),'phone':phone.text.trim()});}final result=await sb.auth.signUp(email:email.text.trim(),password:pass.text,emailRedirectTo:'berberim://login-callback',data:data);if(result.session==null)message='Doğrulama e-postası gönderildi. E-postandaki bağlantıya dokun; Berberim uygulaması açılacak.';}else{await sb.auth.signInWithPassword(email:email.text.trim(),password:pass.text);}}catch(e){message=err(e);}if(mounted)setState(()=>busy=false);}
  @override Widget build(BuildContext c)=>Scaffold(
   body: Stack(children: [
    Positioned(top:-120,right:-90,child:Container(width:300,height:300,decoration:BoxDecoration(shape:BoxShape.circle,color:gold.withValues(alpha:.045)))),
@@ -541,6 +542,14 @@ class _LoginPageState extends State<LoginPage>{
         ],
         selected:{accountType}, onSelectionChanged:(v)=>setState(()=>accountType=v.first),
        ),
+      ],
+      if(create&&accountType=='customer')...[
+       const SizedBox(height:16),const FieldLabel('ADIN'),
+       TextField(controller:firstName,textCapitalization:TextCapitalization.words,decoration:const InputDecoration(hintText:'Adın')),
+       const SizedBox(height:10),const FieldLabel('SOYADIN'),
+       TextField(controller:lastName,textCapitalization:TextCapitalization.words,decoration:const InputDecoration(hintText:'Soyadın')),
+       const SizedBox(height:10),const FieldLabel('TELEFON'),
+       TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(hintText:'05xx xxx xx xx')),
       ],
       const SizedBox(height: 20),
       const FieldLabel('E-POSTA ADRESİ'),
@@ -784,6 +793,7 @@ class _BarberPageState extends State<BarberPage> {
   bool busy = false;
   int tab = 0;
   int appointmentFilter = 0;
+  int appointmentScope = 0;
   int appointmentIntervalMinutes = 30;
   late Future<List<Map<String, dynamic>>> employeesFuture;
   late Future<List<Map<String, dynamic>>> servicesFuture;
@@ -809,7 +819,7 @@ class _BarberPageState extends State<BarberPage> {
 
   Future<List<Map<String, dynamic>>> _loadAppointments() async {
     final rows = await sb.rpc('get_business_appointments', params: {
-      'p_business_id': widget.business['id'], 'p_mine_only': true,
+      'p_business_id': widget.business['id'], 'p_mine_only': false,
     });
     return (rows as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
   }
@@ -1017,57 +1027,25 @@ class _BarberPageState extends State<BarberPage> {
     ),
   );
 
-  Widget _appointmentsPage() => FutureBuilder<List<Map<String, dynamic>>>(
-    future: appointmentsFuture,
-    builder: (context, snapshot) {
-      if (snapshot.connectionState != ConnectionState.done) return const LoadingPage();
-      if (snapshot.hasError) return ErrorPage(message: err(snapshot.error!));
-      final rows = snapshot.data ?? [];
-      final activeRows = rows.where((a) => a['status'] == 'pending' || a['status'] == 'confirmed').toList();
-      final historyRows = rows.where((a) => a['status'] == 'completed' || a['status'] == 'cancelled' || a['status'] == 'no_show').toList();
-      final visible = appointmentFilter == 0 ? activeRows : historyRows;
-      return RefreshIndicator(
-        onRefresh: refresh,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
-          children: [
-            _heading('RANDEVU YÖNETİMİ', 'Randevularım', 'Sana atanmış müşteri randevularını kolayca yönet.', Icons.event_note_rounded),
-            Row(children: [
-              Expanded(child: _metricCard('Aktif', activeRows.length, Icons.event_available_rounded)),
-              const SizedBox(width: 10),
-              Expanded(child: _metricCard('Geçmiş', historyRows.length, Icons.history_rounded)),
-            ]),
-            const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(color: const Color(0xFF171717), borderRadius: BorderRadius.circular(18), border: Border.all(color: border)),
-              child: Row(children: [
-                _appointmentTab(0, 'Aktif randevular', activeRows.length),
-                _appointmentTab(1, 'Geçmiş', historyRows.length),
-              ]),
-            ),
-            const SizedBox(height: 17),
-            if (visible.isEmpty)
-              AppPanel(child: EmptyStateView(
-                icon: appointmentFilter == 0 ? Icons.event_available_rounded : Icons.history_rounded,
-                title: appointmentFilter == 0 ? 'Aktif randevun yok' : 'Geçmiş randevu yok',
-                subtitle: appointmentFilter == 0 ? 'Yeni müşteri randevuların burada görünecek.' : 'Tamamlanan ve iptal edilen randevular burada listelenir.',
-              ))
-            else
-              ...visible.map((a) => BusinessAppointmentCard(
-                appointment: a,
-                onComplete: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => _setStatus(a['appointment_id'].toString(), 'completed') : null,
-                onCancel: (a['status'] == 'pending' || a['status'] == 'confirmed') && a['requires_business_approval'] != true ? () => _cancel(a['appointment_id'].toString()) : null,
-                onApprove: a['requires_business_approval'] == true ? () => _reviewRequest(a['appointment_id'].toString(), 'approve') : null,
-                onReject: a['requires_business_approval'] == true ? () => _reviewRequest(a['appointment_id'].toString(), 'reject') : null,
-              )),
-          ],
-        ),
-      );
-    },
-  );
-
+  Widget _appointmentsPage() => FutureBuilder<List<Map<String, dynamic>>>(future:appointmentsFuture,builder:(context,snapshot){
+    if(snapshot.connectionState!=ConnectionState.done)return const LoadingPage();if(snapshot.hasError)return ErrorPage(message:err(snapshot.error!));
+    final rows=snapshot.data??[],own=rows.where((a)=>a['is_owner_appointment']==true).toList(),staff=rows.where((a)=>a['is_owner_appointment']!=true).toList(),scope=appointmentScope==0?own:staff;
+    final active=scope.where((a)=>a['status']=='pending'||a['status']=='confirmed').toList(),history=scope.where((a)=>['completed','cancelled','no_show'].contains(a['status'])).toList(),visible=appointmentFilter==0?active:history;
+    return RefreshIndicator(onRefresh:refresh,child:ListView(padding:const EdgeInsets.fromLTRB(18,16,18,28),children:[
+      _heading('RANDEVU YÖNETİMİ','Randevular','Kendi ve çalışan randevularını ayrı ayrı yönet.',Icons.event_note_rounded),
+      Row(children:[Expanded(child:_scopeTab(0,'Benim Randevularım',own.length)),const SizedBox(width:8),Expanded(child:_scopeTab(1,'Çalışan Randevuları',staff.length))]),
+      const SizedBox(height:14),Row(children:[Expanded(child:_metricCard('Aktif',active.length,Icons.event_available_rounded)),const SizedBox(width:10),Expanded(child:_metricCard('Geçmiş',history.length,Icons.history_rounded))]),
+      const SizedBox(height:14),Row(children:[_appointmentTab(0,'Aktif randevular',active.length),_appointmentTab(1,'Geçmiş',history.length)]),
+      const SizedBox(height:14),
+      if(visible.isEmpty)const AppPanel(child:EmptyStateView(icon:Icons.event_busy_rounded,title:'Randevu bulunmuyor',subtitle:'Seçtiğin bölümde randevu yok.'))
+      else ...visible.map((a)=>BusinessAppointmentCard(appointment:a,showEmployee:appointmentScope==1,
+        onComplete:(a['status']=='pending'||a['status']=='confirmed')&&a['requires_business_approval']!=true?()=>_setStatus(a['appointment_id'].toString(),'completed'):null,
+        onCancel:(a['status']=='pending'||a['status']=='confirmed')&&a['requires_business_approval']!=true?()=>_cancel(a['appointment_id'].toString()):null,
+        onApprove:a['requires_business_approval']==true?()=>_reviewRequest(a['appointment_id'].toString(),'approve'):null,
+        onReject:a['requires_business_approval']==true?()=>_reviewRequest(a['appointment_id'].toString(),'reject'):null))
+    ]));
+  });
+  Widget _scopeTab(int index,String label,int count){final selected=appointmentScope==index;return GestureDetector(onTap:()=>setState(()=>{appointmentScope=index,appointmentFilter=0}),child:Container(padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:selected?gold:panel,borderRadius:BorderRadius.circular(14),border:Border.all(color:border)),child:Column(children:[Text(label,textAlign:TextAlign.center,style:TextStyle(color:selected?ink:ivory,fontWeight:FontWeight.w800,fontSize:11)),Text('$count randevu',style:TextStyle(color:selected?ink:muted,fontSize:10))])));}
   Widget _appointmentTab(int index, String label, int count) {
     final selected = appointmentFilter == index;
     return Expanded(child: GestureDetector(
@@ -1315,6 +1293,8 @@ class BusinessAppointmentCard extends StatelessWidget {
 
   @override Widget build(BuildContext context) {
     final status = (appointment['status'] ?? '').toString();
+    final customerPhone=(appointment['customer_phone']??'').toString();
+    final avatarUrl=(appointment['customer_avatar_url']??'').toString();
     final active = status == 'pending' || status == 'confirmed';
     final statusColor = status == 'completed' ? Colors.greenAccent
       : status == 'cancelled' || status == 'no_show' ? Colors.redAccent
@@ -1330,13 +1310,15 @@ class BusinessAppointmentCard extends StatelessWidget {
           Container(width: 48, height: 48, decoration: BoxDecoration(
             gradient: LinearGradient(colors: [gold.withValues(alpha: .22), gold.withValues(alpha: .07)]),
             borderRadius: BorderRadius.circular(15)),
-            child: const Icon(Icons.person_rounded, color: gold, size: 24)),
+            clipBehavior:Clip.antiAlias,
+            child:avatarUrl.isNotEmpty?Image.network(avatarUrl,fit:BoxFit.cover,errorBuilder:(_,__,___)=>const Icon(Icons.person_rounded,color:gold,size:24)):const Icon(Icons.person_rounded,color:gold,size:24)),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text((appointment['customer_name'] ?? 'Müşteri').toString(), maxLines: 1, overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
             const SizedBox(height: 4),
             Text((appointment['service_name'] ?? 'Hizmet').toString(), style: const TextStyle(color: muted, fontSize: 12)),
+            if(customerPhone.isNotEmpty) Padding(padding:const EdgeInsets.only(top:4),child:Text(customerPhone.startsWith('TEST-')?'Telefon güncellenmeli':customerPhone,style:const TextStyle(color:muted,fontSize:11))),
             if (showEmployee && (appointment['employee_name'] ?? '').toString().isNotEmpty)
               Padding(padding: const EdgeInsets.only(top: 4), child: Text('Çalışan: ${appointment['employee_name']}', style: const TextStyle(color: muted, fontSize: 11))),
           ])),
@@ -1604,6 +1586,18 @@ class _CustomerQrScannerPageState extends State<CustomerQrScannerPage> {
     ),
   );
 }
+class CustomerProfileEditor extends StatefulWidget { const CustomerProfileEditor({super.key}); @override State<CustomerProfileEditor> createState()=>_CustomerProfileEditorState(); }
+class _CustomerProfileEditorState extends State<CustomerProfileEditor>{
+ final first=TextEditingController(),last=TextEditingController(),phone=TextEditingController(); bool loaded=false,busy=false,uploading=false; late Future<Map<String,dynamic>?> data;
+ @override void initState(){super.initState();data=load();}
+ @override void dispose(){first.dispose();last.dispose();phone.dispose();super.dispose();}
+ Future<Map<String,dynamic>?> load()=>sb.from('profiles').select('first_name,last_name,full_name,phone,avatar_url').eq('id',uid).maybeSingle();
+ void fill(Map<String,dynamic> p){if(loaded)return;final n=(p['full_name']??'').toString().split(' ');first.text=(p['first_name']??(n.isEmpty?'':n.first)).toString();last.text=(p['last_name']??(n.length>1?n.skip(1).join(' '):'')).toString();phone.text=(p['phone']??'').toString();loaded=true;}
+ Future<void> save()async{final f=first.text.trim(),l=last.text.trim(),p=phone.text.trim(),d=p.replaceAll(RegExp(r'[^0-9]'),'');if(f.length<2||l.length<2||d.length<10||d.length>11){toast(context,'Ad, soyad ve geçerli telefon zorunludur');return;}setState(()=>busy=true);try{await sb.from('profiles').update({'first_name':f,'last_name':l,'full_name':f+' '+l,'phone':p}).eq('id',uid);setState(()=>data=load());toast(context,'Profil bilgilerin kaydedildi');}catch(e){toast(context,err(e));}finally{if(mounted)setState(()=>busy=false);}}
+ Future<void> photo()async{try{final x=await ImagePicker().pickImage(source:ImageSource.gallery,imageQuality:82,maxWidth:1400);if(x==null)return;setState(()=>uploading=true);final ext=x.name.split('.').last.toLowerCase(),e=['jpg','jpeg','png','webp'].contains(ext)?ext:'jpg',mime=e=='png'?'image/png':e=='webp'?'image/webp':'image/jpeg',path=uid+'/avatar.'+e;await sb.storage.from('profile-photos').upload(path,await x.readAsBytes(),fileOptions:FileOptions(upsert:true,contentType:mime));final url=sb.storage.from('profile-photos').getPublicUrl(path);await sb.from('profiles').update({'avatar_url':url}).eq('id',uid);setState(()=>data=load());toast(context,'Profil fotoğrafı güncellendi');}catch(e){toast(context,'Fotoğraf yüklenemedi');}finally{if(mounted)setState(()=>uploading=false);}}
+ @override Widget build(BuildContext c)=>FutureBuilder<Map<String,dynamic>?>(future:data,builder:(c,s){if(s.connectionState!=ConnectionState.done)return const LoadingPage();if(s.hasError)return AppPanel(child:Text(err(s.error!)));final p=s.data??{};fill(p);final url=(p['avatar_url']??'').toString();return AppPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[const SectionHeading('Kişisel bilgiler'),Center(child:Column(children:[CircleAvatar(radius:42,backgroundImage:url.isEmpty?null:NetworkImage(url),child:url.isEmpty?const Icon(Icons.person,size:38):null),OutlinedButton.icon(onPressed:uploading?null:photo,icon:const Icon(Icons.camera_alt_outlined),label:Text(uploading?'Yükleniyor…':'Profil fotoğrafı ekle'))])),const FieldLabel('AD'),TextField(controller:first),const SizedBox(height:10),const FieldLabel('SOYAD'),TextField(controller:last),const SizedBox(height:10),const FieldLabel('TELEFON'),TextField(controller:phone,keyboardType:TextInputType.phone),const SizedBox(height:14),ElevatedButton(onPressed:busy?null:save,child:Text(busy?'Kaydediliyor…':'Bilgilerimi kaydet'))]));});
+}
+
 class CustomerProfilePage extends StatefulWidget {
   const CustomerProfilePage({super.key});
 
@@ -1624,7 +1618,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
   void _reload() {
     profileFuture = sb
         .from('profiles')
-        .select('full_name,email,phone')
+        .select('first_name,last_name,full_name,email,phone,avatar_url')
         .eq('id', uid)
         .maybeSingle();
     membershipsFuture = sb
@@ -1866,6 +1860,8 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                   icon: Icons.person_outline_rounded,
                 ),
                 _profileCard(profile.data ?? {}),
+                const SizedBox(height: 12),
+                const CustomerProfileEditor(),
                 const SizedBox(height: 25),
                 Row(
                   children: [
