@@ -1959,138 +1959,183 @@ class CustomerPage extends StatefulWidget {
  const CustomerPage({super.key});
  @override State<CustomerPage> createState()=>_CustomerPageState();
 }
-class _CustomerPageState extends State<CustomerPage>{
+
+class _CustomerPageState extends State<CustomerPage> {
  late Future<List<Map<String,dynamic>>> memberships;
- @override void initState(){super.initState();memberships=_load();}
- Future<List<Map<String,dynamic>>> _load()async{
-  final rows=await sb.from('business_memberships').select('business_id,businesses(id,name)').eq('customer_id',uid);
+ int _tab = 0;
+
+ @override void initState() { super.initState(); memberships = _load(); }
+
+ Future<List<Map<String,dynamic>>> _load() async {
+  final rows = await sb.from('business_memberships').select('business_id,businesses(id,name)').eq('customer_id',uid);
   return (rows as List).map((e)=>e['businesses']).whereType<Map<String,dynamic>>().toList();
  }
- Future<void> _join()async{
-  final code=await Navigator.of(context).push<String>(MaterialPageRoute(builder:(_)=>const CustomerQrScannerPage()));
-  if(code==null||code.trim().isEmpty)return;
-  try{await sb.rpc('join_business_by_code',params:{'p_code':code.trim().toUpperCase()});if(!mounted)return;setState(()=>memberships=_load());toast(context,'İşletmeye katıldın');}
-  catch(e){if(mounted)toast(context,err(e));}
+
+ Future<void> _join() async {
+  final code = await Navigator.of(context).push<String>(MaterialPageRoute(builder:(_)=>const CustomerQrScannerPage()));
+  if(code==null || code.trim().isEmpty) return;
+  try {
+   await sb.rpc('join_business_by_code',params:{'p_code':code.trim().toUpperCase()});
+   if(!mounted)return;
+   setState(()=>memberships=_load());
+   toast(context,'İşletmeye katıldın');
+  } catch(e) { if(mounted)toast(context,err(e)); }
  }
- Future<void> _profile()async{
-  final changed=await Navigator.of(context).push<bool>(MaterialPageRoute(builder:(_)=>const CustomerProfilePage()));
-  if(changed==true&&mounted)setState(()=>memberships=_load());
+
+ Future<void> _profile() async {
+  setState(()=>_tab=3);
+  final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(builder:(_)=>const CustomerProfilePage()));
+  if(changed==true && mounted)setState(()=>memberships=_load());
+  if(mounted)setState(()=>_tab=0);
  }
- void _openBusiness(Map<String,dynamic> business){
+
+ void _appointments() {
+  setState(()=>_tab=1);
+  Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())).then((_) {
+   if(mounted)setState(()=>_tab=0);
+  });
+ }
+
+ void _openBusiness(Map<String,dynamic> business) {
   Navigator.of(context).push(MaterialPageRoute(builder:(_)=>CustomerBookingFlowPage(businesses:[business])));
  }
- Widget _businessCard(Map<String,dynamic> business,int index){
-  final name=(business['name']??'Berber dükkanı').toString();
-  return Padding(
-   padding:const EdgeInsets.only(bottom:12),
-   child:Material(
-    color:Colors.transparent,
-    child:InkWell(
-     borderRadius:BorderRadius.circular(25),
-     onTap:()=>_openBusiness(business),
-     child:Ink(
-      decoration:BoxDecoration(
-       borderRadius:BorderRadius.circular(25),
-       gradient:LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:index.isEven?const [Color(0xFF28251F),Color(0xFF1A1B20),Color(0xFF121317)]:const [Color(0xFF22262A),Color(0xFF1A1B20),Color(0xFF121317)]),
-       border:Border.all(color:gold.withValues(alpha:.28)),
-       boxShadow:[BoxShadow(color:Colors.black.withValues(alpha:.16),blurRadius:20,offset:const Offset(0,9))],
-      ),
-      child:Padding(
-       padding:const EdgeInsets.all(17),
-       child:Row(children:[
-        Container(width:58,height:58,decoration:BoxDecoration(borderRadius:BorderRadius.circular(19),gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[goldLight,gold]),boxShadow:[BoxShadow(color:gold.withValues(alpha:.15),blurRadius:16,offset:const Offset(0,6))]),child:const Icon(Icons.content_cut_rounded,color:ink,size:28)),
-        const SizedBox(width:14),
-        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-         Row(children:[Flexible(child:Text(name,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:16,fontWeight:FontWeight.w900,letterSpacing:-.25))),const SizedBox(width:6),const Icon(Icons.verified_rounded,color:goldLight,size:15)]),
-         const SizedBox(height:7),
-         Row(children:[Container(width:7,height:7,decoration:const BoxDecoration(color:Color(0xFF78C99A),shape:BoxShape.circle)),const SizedBox(width:6),const Text('ÜYELİĞİN AKTİF',style:TextStyle(color:Color(0xFFB8DCC5),fontSize:9,fontWeight:FontWeight.w900,letterSpacing:.8))]),
-         const SizedBox(height:7),
-         const Text('Bu dükkândan randevu al',style:TextStyle(color:muted,fontSize:11,fontWeight:FontWeight.w600)),
-        ])),
-        const SizedBox(width:8),
-        Container(width:38,height:38,decoration:BoxDecoration(color:gold.withValues(alpha:.13),borderRadius:BorderRadius.circular(13)),child:const Icon(Icons.arrow_forward_rounded,color:goldLight,size:20)),
-       ]),
-      ),
-     ),
-    ),
+
+ Widget _hero() => Container(
+  height: 268,
+  clipBehavior: Clip.antiAlias,
+  decoration: BoxDecoration(borderRadius:BorderRadius.circular(28),color:const Color(0xFF25211B),border:Border.all(color:gold.withValues(alpha:.24))),
+  child: Stack(fit:StackFit.expand,children:[
+   Image.network(
+    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1200&q=85',
+    fit:BoxFit.cover,
+    errorBuilder:(_,__,___)=>Container(decoration:const BoxDecoration(gradient:LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF393126),Color(0xFF111216)])),child:const Icon(Icons.content_cut_rounded,color:gold,size:82)),
    ),
-  );
+   const DecoratedBox(decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment.centerRight,end:Alignment.centerLeft,colors:[Color(0x00101010),Color(0xDD090A0C)],stops:[0,.82]))),
+   Padding(padding:const EdgeInsets.fromLTRB(22,22,18,21),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.end,children:[
+    Container(padding:const EdgeInsets.symmetric(horizontal:11,vertical:7),decoration:BoxDecoration(color:gold.withValues(alpha:.17),borderRadius:BorderRadius.circular(30),border:Border.all(color:gold.withValues(alpha:.42))),child:const Text('BERBERİM EXPERIENCE',style:TextStyle(color:goldLight,fontSize:9,fontWeight:FontWeight.w900,letterSpacing:1.35))),
+    const SizedBox(height:13),
+    const Text('Stilini yansıt.\\nRandevunu al.',style:TextStyle(fontSize:31,height:1.05,fontWeight:FontWeight.w900,letterSpacing:-1.1,color:ivory)),
+    const SizedBox(height:8),
+    const Text('Sana en yakın berberde, tam istediğin zamanda.',style:TextStyle(color:Color(0xFFD4D0C8),fontSize:12,height:1.45)),
+    const SizedBox(height:16),
+    SizedBox(height:46,width:166,child:ElevatedButton(onPressed:_join,style:ElevatedButton.styleFrom(minimumSize:Size.zero,padding:const EdgeInsets.symmetric(horizontal:17),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(14))),child:const Row(mainAxisAlignment:MainAxisAlignment.center,children:[Text('Berberini keşfet'),SizedBox(width:8),Icon(Icons.arrow_forward_rounded,size:17)]))),
+   ])),
+  ]),
+ );
+
+ Widget _sectionTitle(String title,String subtitle,{Widget? action}) => Padding(
+  padding:const EdgeInsets.only(bottom:13,top:25),
+  child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
+   Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    Text(title,style:const TextStyle(fontSize:20,fontWeight:FontWeight.w900,letterSpacing:-.55)),
+    const SizedBox(height:4),
+    Text(subtitle,style:const TextStyle(color:muted,fontSize:11)),
+   ])),
+   if(action!=null)action!,
+  ]),
+ );
+
+ Widget _businessCard(Map<String,dynamic> business,int index) {
+  final name=(business['name']??'Berber dükkanı').toString();
+  return Padding(padding:const EdgeInsets.only(bottom:12),child:Material(
+   color:Colors.transparent,
+   child:InkWell(borderRadius:BorderRadius.circular(22),onTap:()=>_openBusiness(business),child:Ink(
+    decoration:BoxDecoration(color:panel,borderRadius:BorderRadius.circular(22),border:Border.all(color:border),boxShadow:const [BoxShadow(color:Color(0x22000000),blurRadius:18,offset:Offset(0,8))]),
+    child:Row(children:[
+     ClipRRect(borderRadius:const BorderRadius.horizontal(left:Radius.circular(21)),child:SizedBox(width:112,height:118,child:Image.network(
+      index.isEven?'https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=500&q=80':'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=500&q=80',
+      fit:BoxFit.cover,errorBuilder:(_,__,___)=>Container(color:panelRaised,child:const Icon(Icons.content_cut_rounded,color:gold,size:34)),
+     ))),
+     Expanded(child:Padding(padding:const EdgeInsets.fromLTRB(14,13,12,13),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Row(children:[Expanded(child:Text(name,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:15,fontWeight:FontWeight.w900,letterSpacing:-.25))),const Icon(Icons.verified_rounded,color:goldLight,size:15)]),
+      const SizedBox(height:8),
+      Row(children:[Container(width:7,height:7,decoration:const BoxDecoration(color:Color(0xFF78C99A),shape:BoxShape.circle)),const SizedBox(width:6),const Text('ÜYELİĞİN AKTİF',style:TextStyle(color:Color(0xFFB8DCC5),fontSize:9,fontWeight:FontWeight.w900,letterSpacing:.7))]),
+      const SizedBox(height:9),
+      const Text('Randevu ve hizmetleri görüntüle',maxLines:2,style:TextStyle(color:muted,fontSize:11,height:1.35)),
+      const SizedBox(height:7),
+      const Row(children:[Text('İşletmeye git',style:TextStyle(color:goldLight,fontSize:11,fontWeight:FontWeight.w800)),SizedBox(width:5),Icon(Icons.arrow_forward_rounded,color:goldLight,size:14)]),
+     ]))),
+    ]),
+   )),
+  ));
  }
- @override Widget build(BuildContext c)=>Scaffold(
+
+ @override Widget build(BuildContext context) => Scaffold(
   appBar:AppBar(
-   title:Row(children:[Container(width:34,height:34,decoration:BoxDecoration(gradient:const LinearGradient(colors:[goldLight,gold]),borderRadius:BorderRadius.circular(11)),child:const Icon(Icons.content_cut_rounded,color:ink,size:19)),const SizedBox(width:10),const Text('Berberim',style:TextStyle(fontWeight:FontWeight.w900,letterSpacing:-.5))]),
+   automaticallyImplyLeading:false,
+   title:Row(children:[
+    Container(width:34,height:34,decoration:BoxDecoration(gradient:const LinearGradient(colors:[goldLight,gold]),borderRadius:BorderRadius.circular(11)),child:const Icon(Icons.content_cut_rounded,color:ink,size:19)),
+    const SizedBox(width:10),
+    const Text('BERBERİM',style:TextStyle(fontSize:16,fontWeight:FontWeight.w900,letterSpacing:1.5)),
+   ]),
    actions:[
-    IconButton(tooltip:'Randevularım',onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.event_note_rounded)),
     notificationAction(context),
-    PopupMenuButton<String>(onSelected:(v){if(v=='profile')_profile();},itemBuilder:(_)=>const [PopupMenuItem(value:'profile',child:ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.person_outline_rounded),title:Text('Profilim')))]),
-    IconButton(tooltip:'Çıkış yap',onPressed:()=>signOutBerberim(),icon:const Icon(Icons.logout_rounded)),
+    IconButton(tooltip:'Profilim',onPressed:_profile,icon:const Icon(Icons.person_outline_rounded)),
    ],
   ),
-  body:FutureBuilder<List<Map<String,dynamic>>>(future:memberships,builder:(c,s){
-   if(s.connectionState!=ConnectionState.done)return const LoadingPage();
-   if(s.hasError)return ErrorPage(message:err(s.error!));
-   final businesses=s.data??[];
+  bottomNavigationBar:NavigationBar(
+   selectedIndex:_tab,
+   onDestinationSelected:(index){
+    if(index==0){setState(()=>_tab=0);return;}
+    if(index==1){_appointments();return;}
+    if(index==2){setState(()=>_tab=2);_join();return;}
+    _profile();
+   },
+   destinations:const [
+    NavigationDestination(icon:Icon(Icons.home_outlined),selectedIcon:Icon(Icons.home_rounded),label:'Ana Sayfa'),
+    NavigationDestination(icon:Icon(Icons.calendar_month_outlined),selectedIcon:Icon(Icons.calendar_month_rounded),label:'Randevularım'),
+    NavigationDestination(icon:Icon(Icons.search_rounded),label:'Keşfet'),
+    NavigationDestination(icon:Icon(Icons.person_outline_rounded),selectedIcon:Icon(Icons.person_rounded),label:'Profil'),
+   ],
+  ),
+  body:FutureBuilder<List<Map<String,dynamic>>>(future:memberships,builder:(context,snapshot){
+   if(snapshot.connectionState!=ConnectionState.done)return const LoadingPage();
+   if(snapshot.hasError)return ErrorPage(message:err(snapshot.error!));
+   final businesses=snapshot.data??[];
    return RefreshIndicator(
     onRefresh:()async{setState(()=>memberships=_load());await memberships;},
     child:ListView(
      physics:const AlwaysScrollableScrollPhysics(),
-     padding:const EdgeInsets.fromLTRB(18,10,18,30),
+     padding:const EdgeInsets.fromLTRB(18,8,18,28),
      children:[
-      Container(
-       padding:const EdgeInsets.fromLTRB(21,21,18,20),
-       decoration:BoxDecoration(borderRadius:BorderRadius.circular(28),gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF383126),Color(0xFF202127),Color(0xFF111216)]),border:Border.all(color:gold.withValues(alpha:.34)),boxShadow:[BoxShadow(color:gold.withValues(alpha:.07),blurRadius:28,offset:const Offset(0,12))]),
-       child:Stack(children:[
-        Positioned(right:-12,top:-17,child:Icon(Icons.content_cut_rounded,size:132,color:gold.withValues(alpha:.07))),
-        Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-         Container(padding:const EdgeInsets.symmetric(horizontal:11,vertical:7),decoration:BoxDecoration(color:gold.withValues(alpha:.13),borderRadius:BorderRadius.circular(30),border:Border.all(color:gold.withValues(alpha:.25))),child:const Text('BAKIMININ YENİ ADRESİ',style:TextStyle(color:goldLight,fontSize:9,fontWeight:FontWeight.w900,letterSpacing:1.25))),
-         const SizedBox(height:16),
-         const Text('Tarzını tamamla.\nBerberini seç.',style:TextStyle(fontSize:27,height:1.12,fontWeight:FontWeight.w900,letterSpacing:-.9)),
-         const SizedBox(height:9),
-         const Text('Sana özel randevu deneyimi için bağlı olduğun dükkânı seç.',style:TextStyle(color:Color(0xFFC0C0C3),fontSize:12,height:1.5)),
-         const SizedBox(height:18),
-         Row(children:[const Icon(Icons.schedule_rounded,color:goldLight,size:16),const SizedBox(width:7),const Text('Kolay seçim  ·  Hızlı randevu',style:TextStyle(color:goldLight,fontSize:10,fontWeight:FontWeight.w800))]),
-        ]),
-       ]),
-      ),
-      const SizedBox(height:25),
-      Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
-       const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text('SENİN DÜKKÂNLARIN',style:TextStyle(color:gold,fontSize:9,fontWeight:FontWeight.w900,letterSpacing:1.3)),
-        SizedBox(height:6),
-        Text('Dükkânını seç',style:TextStyle(fontSize:22,fontWeight:FontWeight.w900,letterSpacing:-.55)),
-        SizedBox(height:4),
-        Text('Randevu almak istediğin berberi seç.',style:TextStyle(color:muted,fontSize:11)),
-       ])),
-       Container(padding:const EdgeInsets.symmetric(horizontal:11,vertical:7),decoration:BoxDecoration(color:panelRaised,borderRadius:BorderRadius.circular(13),border:Border.all(color:border)),child:Text('${businesses.length} DÜKKÂN',style:const TextStyle(color:goldLight,fontSize:9,fontWeight:FontWeight.w900,letterSpacing:.5))),
-      ]),
-      const SizedBox(height:14),
+      _hero(),
+      _sectionTitle('Berberini seç','Bağlı olduğun işletmelerden randevu al.',action:TextButton(onPressed:_join,child:const Text('＋ Ekle'))),
       if(businesses.isEmpty)
-       AppPanel(padding:const EdgeInsets.fromLTRB(18,21,18,18),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-        Container(height:104,decoration:BoxDecoration(borderRadius:BorderRadius.circular(21),gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF302B22),Color(0xFF1B1C21)])),child:const Center(child:Icon(Icons.storefront_rounded,color:goldLight,size:46))),
-        const SizedBox(height:17),
-        const Text('İlk berberini ekle',textAlign:TextAlign.center,style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),
-        const SizedBox(height:7),
-        const Text('Dükkândaki QR kodu okut veya işletme kodunu gir. Berberinle eşleş, randevunu buradan yönet.',textAlign:TextAlign.center,style:TextStyle(color:muted,fontSize:12,height:1.5)),
-        const SizedBox(height:17),
-        SizedBox(height:50,child:ElevatedButton.icon(onPressed:_join,icon:const Icon(Icons.qr_code_scanner_rounded),label:const Text('DÜKKÂNIMI EKLE'))),
+       Container(padding:const EdgeInsets.fromLTRB(20,22,20,20),decoration:BoxDecoration(color:panel,borderRadius:BorderRadius.circular(22),border:Border.all(color:border)),child:Column(children:[
+        Container(width:58,height:58,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(18)),child:const Icon(Icons.storefront_outlined,color:gold,size:28)),
+        const SizedBox(height:13),
+        const Text('İlk berberini ekle',style:TextStyle(fontSize:17,fontWeight:FontWeight.w900)),
+        const SizedBox(height:6),
+        const Text('Dükkândaki QR kodu okut ve randevu deneyimine başla.',textAlign:TextAlign.center,style:TextStyle(color:muted,fontSize:12,height:1.45)),
+        const SizedBox(height:15),
+        SizedBox(width:190,height:46,child:ElevatedButton.icon(onPressed:_join,icon:const Icon(Icons.qr_code_scanner_rounded,size:18),label:const Text('DÜKKÂNIMI EKLE'))),
        ]))
-      else ...[
-       ...businesses.asMap().entries.map((entry)=>_businessCard(entry.value,entry.key)),
-       OutlinedButton.icon(onPressed:_join,icon:const Icon(Icons.add_business_rounded,size:18),label:const Text('Başka bir dükkân ekle'),style:OutlinedButton.styleFrom(minimumSize:const Size.fromHeight(48),foregroundColor:goldLight,side:BorderSide(color:gold.withValues(alpha:.35)),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(16)))),
-      ],
-      const SizedBox(height:23),
-      AppPanel(padding:const EdgeInsets.all(16),child:Row(children:[
-       Container(width:44,height:44,decoration:BoxDecoration(color:gold.withValues(alpha:.12),borderRadius:BorderRadius.circular(14)),child:const Icon(Icons.calendar_month_rounded,color:gold,size:22)),
-       const SizedBox(width:12),
-       const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Randevularım',style:TextStyle(fontWeight:FontWeight.w900,fontSize:14)),SizedBox(height:3),Text('Yaklaşan ve geçmiş randevularını takip et.',style:TextStyle(color:muted,fontSize:10))])),
-       IconButton(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const CustomerAppointmentsPage())),icon:const Icon(Icons.arrow_forward_rounded,color:gold)),
-      ])),
-      const SizedBox(height:13),
-      const Center(child:Text('BERBERİM  ·  BAKIMIN SANA ÖZEL',style:TextStyle(color:Color(0xFF666A72),fontSize:9,fontWeight:FontWeight.w800,letterSpacing:1.1))),
+      else ...businesses.asMap().entries.map((entry)=>_businessCard(entry.value,entry.key)),
+      _sectionTitle('Berberim ayrıcalıkları','Randevu deneyimini kolaylaştıran detaylar.'),
+      Row(children:[
+       Expanded(child:_feature(Icons.schedule_rounded,'Kolay randevu','Müsait saatini seç.')),
+       const SizedBox(width:10),
+       Expanded(child:_feature(Icons.verified_user_outlined,'Güvenli seçim','İşletmeni tanı.')),
+       const SizedBox(width:10),
+       Expanded(child:_feature(Icons.notifications_active_outlined,'Anında bilgi','Durumunu takip et.')),
+      ]),
+      const SizedBox(height:20),
+      Center(child:Text('BERBERİM  ·  BAKIMIN SANA ÖZEL',style:TextStyle(color:muted.withValues(alpha:.65),fontSize:9,fontWeight:FontWeight.w800,letterSpacing:1.2))),
      ],
     ),
    );
   }),
+ );
+
+ Widget _feature(IconData icon,String title,String subtitle)=>Container(
+  padding:const EdgeInsets.fromLTRB(11,14,10,13),
+  decoration:BoxDecoration(color:panel,borderRadius:BorderRadius.circular(17),border:Border.all(color:border)),
+  child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+   Icon(icon,color:gold,size:21),const SizedBox(height:10),
+   Text(title,style:const TextStyle(fontSize:11,fontWeight:FontWeight.w900)),
+   const SizedBox(height:4),
+   Text(subtitle,style:const TextStyle(color:muted,fontSize:9,height:1.35)),
+  ]),
  );
 }
 
