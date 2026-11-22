@@ -1864,7 +1864,7 @@ class _CustomerAppointmentCategoryPageState extends State<CustomerAppointmentCat
   }
   Future<void> _refresh() async {final f=_load();if(mounted)setState(()=>future=f);await f;}
   Widget _card(Map<String,dynamic> a){
-    final b=a['businesses'] as Map<String,dynamic>???{}, service=a['services'] as Map<String,dynamic>???{}, status=(a['status']??'').toString(), approval=a['requires_business_approval']==true;
+    final b=a['businesses'] as Map<String,dynamic>? ?? {}, service=a['services'] as Map<String,dynamic>???{}, status=(a['status']??'').toString(), approval=a['requires_business_approval']==true;
     final color=approval?const Color(0xFFE6AE69):status=='completed'?const Color(0xFF83C99B):status=='cancelled'||status=='no_show'?const Color(0xFFE58F89):goldLight;
     final d=DateTime.tryParse((a['starts_at']??'').toString())?.toLocal();
     final day=d==null?'Tarih yok':'${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}', time=d==null?'--:--':'${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';
