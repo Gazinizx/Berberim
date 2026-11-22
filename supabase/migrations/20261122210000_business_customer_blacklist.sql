@@ -15,6 +15,9 @@ create table if not exists public.business_customer_controls (
 create index if not exists business_customer_controls_blacklist_idx
   on public.business_customer_controls (business_id, is_blacklisted, updated_at desc);
 
+create index if not exists appointments_business_customer_starts_idx
+  on public.appointments (business_id, customer_id, starts_at desc);
+
 alter table public.business_customer_controls enable row level security;
 
 drop policy if exists "business owners read their customer controls" on public.business_customer_controls;
