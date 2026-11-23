@@ -1195,6 +1195,9 @@ class _BarberPageState extends State<BarberPage> {
               mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 2.15,
               children: [
                 _quickAction(Icons.event_note_rounded, 'Randevularım', () => setState(() => tab = 1)),
+                _quickAction(Icons.people_alt_rounded, 'Müşteriler', () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => BusinessCustomersPage(business: widget.business)),
+                )),
                 _quickAction(Icons.groups_rounded, 'Çalışanlar', () => setState(() => tab = 2)),
                 _quickAction(Icons.content_cut_rounded, 'Hizmetler', () => setState(() => tab = 3)),
                 _quickAction(Icons.tune_rounded, 'İşletme ayarları', () => setState(() => tab = 4)),
