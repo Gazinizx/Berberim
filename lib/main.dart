@@ -1572,7 +1572,7 @@ class _BusinessCustomersPageState extends State<BusinessCustomersPage> {
     if (blocked) {
       final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
         title: const Text('Kara listeden çıkarılsın mı?'),
-        content: Text('\${customer['full_name'] ?? 'Müşteri'} tekrar bu işletmeden randevu alabilecek.'),
+        content: Text('${customer['full_name'] ?? 'Müşteri'} tekrar bu işletmeden randevu alabilecek.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgeç')),
           FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Listeden çıkar')),
@@ -1584,7 +1584,7 @@ class _BusinessCustomersPageState extends State<BusinessCustomersPage> {
       reason = await showDialog<String?>(context: context, builder: (c) => AlertDialog(
         title: const Text('Kara listeye ekle'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('\${customer['full_name'] ?? 'Müşteri'} bu işletmeden yeni randevu alamayacak.'),
+          Text('${customer['full_name'] ?? 'Müşteri'} bu işletmeden yeni randevu alamayacak.'),
           const SizedBox(height: 12),
           TextField(controller: controller, minLines: 2, maxLines: 4, maxLength: 300,
             decoration: const InputDecoration(labelText: 'Sebep (isteğe bağlı)', alignLabelWithHint: true)),
@@ -1640,7 +1640,7 @@ class _BusinessCustomersPageState extends State<BusinessCustomersPage> {
           Row(children: [
             Expanded(child: AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Icon(Icons.people_outline_rounded, color: gold), const SizedBox(height: 8),
-              Text('\${rows.length}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+              Text('${rows.length}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
               const Text('Toplam müşteri', style: TextStyle(color: muted, fontSize: 11)),
             ]))),
             const SizedBox(width: 10),
@@ -1656,7 +1656,7 @@ class _BusinessCustomersPageState extends State<BusinessCustomersPage> {
             title: 'Henüz müşteri yok', subtitle: 'İşletmene katılan müşteriler burada görünecek.')),
           ...rows.map((r) {
             final blocked = r['is_blacklisted'] == true;
-            final name = ('\${r['first_name'] ?? ''} \${r['last_name'] ?? ''}').trim();
+            final name = ('${r['first_name'] ?? ''} ${r['last_name'] ?? ''}').trim();
             final displayName = name.isEmpty ? (r['full_name'] ?? 'Müşteri').toString() : name;
             final phone = (r['phone'] ?? '').toString();
             final reason = (r['blacklist_reason'] ?? '').toString();
