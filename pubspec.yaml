@@ -9,6 +9,7 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   supabase_flutter: ^2.9.1
+  image_picker: ^1.1.2
   mobile_scanner: ^6.0.11
   qr_flutter: ^4.1.0
   firebase_core: ^5.2.0
