@@ -1522,6 +1522,9 @@ class _BarberPageState extends State<BarberPage> {
 
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(widget.business['name'] ?? 'İşletme paneli'), actions: [
+      IconButton(tooltip: 'Müşteriler ve kara liste', onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => BusinessCustomersPage(business: widget.business)),
+      ), icon: const Icon(Icons.people_alt_outlined)),
       IconButton(tooltip: 'Tüm randevular', onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BusinessOverviewPage(business: widget.business))), icon: const Icon(Icons.dashboard_outlined)),
       notificationAction(context),
       IconButton(tooltip: 'Çıkış yap', onPressed: () => signOutBerberim(), icon: const Icon(Icons.logout_rounded)),
@@ -1540,6 +1543,153 @@ class _BarberPageState extends State<BarberPage> {
         NavigationDestination(icon: Icon(Icons.tune_outlined), selectedIcon: Icon(Icons.tune_rounded), label: 'Ayarlar'),
       ],
     ),
+  );
+}
+
+
+
+class BusinessCustomersPage extends StatefulWidget {
+  const BusinessCustomersPage({super.key, required this.business});
+  final Map<String, dynamic> business;
+  @override State<BusinessCustomersPage> createState() => _BusinessCustomersPageState();
+}
+
+class _BusinessCustomersPageState extends State<BusinessCustomersPage> {
+  late Future<List<Map<String, dynamic>>> future;
+  bool busy = false;
+  @override void initState() { super.initState(); future = _load(); }
+  Future<List<Map<String, dynamic>>> _load() async {
+    final rows = await sb.rpc('get_business_customers', params: {'p_business_id': widget.business['id']});
+    return (rows as List).map((r) => Map<String, dynamic>.from(r as Map)).toList();
+  }
+  Future<void> _refresh() async { setState(() => future = _load()); await future; }
+
+  Future<void> _changeBlacklist(Map<String, dynamic> customer) async {
+    if (busy) return;
+    final customerId = customer['customer_id'].toString();
+    final blocked = customer['is_blacklisted'] == true;
+    String? reason;
+    if (blocked) {
+      final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+        title: const Text('Kara listeden çıkarılsın mı?'),
+        content: Text('\${customer['full_name'] ?? 'Müşteri'} tekrar bu işletmeden randevu alabilecek.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgeç')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Listeden çıkar')),
+        ],
+      ));
+      if (ok != true) return;
+    } else {
+      final controller = TextEditingController();
+      reason = await showDialog<String?>(context: context, builder: (c) => AlertDialog(
+        title: const Text('Kara listeye ekle'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('\${customer['full_name'] ?? 'Müşteri'} bu işletmeden yeni randevu alamayacak.'),
+          const SizedBox(height: 12),
+          TextField(controller: controller, minLines: 2, maxLines: 4, maxLength: 300,
+            decoration: const InputDecoration(labelText: 'Sebep (isteğe bağlı)', alignLabelWithHint: true)),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgeç')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8B4545), foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(c, controller.text.trim()),
+            child: const Text('Kara listeye ekle'),
+          ),
+        ],
+      ));
+      controller.dispose();
+      if (reason == null) return;
+    }
+    setState(() => busy = true);
+    try {
+      if (blocked) {
+        await sb.from('business_customer_blacklist').delete()
+          .eq('business_id', widget.business['id']).eq('customer_id', customerId);
+      } else {
+        await sb.from('business_customer_blacklist').insert({
+          'business_id': widget.business['id'], 'customer_id': customerId,
+          'reason': reason, 'created_by': uid,
+        });
+      }
+      await _refresh();
+      if (mounted) toast(context, blocked ? 'Müşteri kara listeden çıkarıldı' : 'Müşteri kara listeye eklendi');
+    } catch (e) {
+      if (mounted) toast(context, err(e));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Müşteriler'), actions: [
+      IconButton(onPressed: busy ? null : () => _refresh(), icon: const Icon(Icons.refresh_rounded)),
+    ]),
+    body: FutureBuilder<List<Map<String, dynamic>>>(future: future, builder: (context, snap) {
+      if (snap.connectionState != ConnectionState.done) return const LoadingPage();
+      if (snap.hasError) return ErrorPage(message: err(snap.error!));
+      final rows = snap.data ?? [];
+      final blockedCount = rows.where((r) => r['is_blacklisted'] == true).length;
+      return RefreshIndicator(onRefresh: _refresh, child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
+        children: [
+          const ScreenHeading(eyebrow: 'İŞLETME YÖNETİMİ', title: 'Müşteriler',
+            subtitle: 'Müşterilerini görüntüle, kara listeye ekle veya listeden çıkar.',
+            icon: Icons.people_alt_rounded),
+          Row(children: [
+            Expanded(child: AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.people_outline_rounded, color: gold), const SizedBox(height: 8),
+              Text('\${rows.length}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+              const Text('Toplam müşteri', style: TextStyle(color: muted, fontSize: 11)),
+            ]))),
+            const SizedBox(width: 10),
+            Expanded(child: AppPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.block_rounded, color: Color(0xFFE58F89)), const SizedBox(height: 8),
+              Text('$blockedCount', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+              const Text('Kara listedeki', style: TextStyle(color: muted, fontSize: 11)),
+            ]))),
+          ]),
+          const SizedBox(height: 14),
+          const SectionHeading('Müşteri listesi'),
+          if (rows.isEmpty) const AppPanel(child: EmptyStateView(icon: Icons.people_outline_rounded,
+            title: 'Henüz müşteri yok', subtitle: 'İşletmene katılan müşteriler burada görünecek.')),
+          ...rows.map((r) {
+            final blocked = r['is_blacklisted'] == true;
+            final name = ('\${r['first_name'] ?? ''} \${r['last_name'] ?? ''}').trim();
+            final displayName = name.isEmpty ? (r['full_name'] ?? 'Müşteri').toString() : name;
+            final phone = (r['phone'] ?? '').toString();
+            final reason = (r['blacklist_reason'] ?? '').toString();
+            return AppPanel(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(13),
+              child: Column(children: [
+                Row(children: [
+                  ProfileAvatar(url: (r['avatar_url'] ?? '').toString(), size: 48),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(displayName, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                    if (phone.isNotEmpty) ...[const SizedBox(height: 4), Text(phone, style: const TextStyle(color: muted, fontSize: 11))],
+                  ])),
+                  StatusTag(blocked ? 'KARA LİSTEDE' : 'AKTİF',
+                    color: blocked ? const Color(0xFFE58F89) : Colors.greenAccent),
+                ]),
+                if (blocked && reason.trim().isNotEmpty) ...[
+                  const SizedBox(height: 9),
+                  Align(alignment: Alignment.centerLeft, child: Text('Sebep: $reason',
+                    style: const TextStyle(color: muted, fontSize: 11))),
+                ],
+                const SizedBox(height: 10),
+                SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                  onPressed: busy ? null : () => _changeBlacklist(r),
+                  icon: Icon(blocked ? Icons.remove_circle_outline_rounded : Icons.block_rounded,
+                    color: blocked ? Colors.greenAccent : const Color(0xFFE58F89)),
+                  label: Text(blocked ? 'Kara listeden çıkar' : 'Kara listeye ekle'),
+                )),
+              ]),
+            );
+          }),
+        ],
+      ));
+    }),
   );
 }
 
